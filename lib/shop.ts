@@ -1,106 +1,118 @@
 import { readLocal, writeLocal } from "@/lib/persist";
 
+export const CART_KEY = "aaa-grocery:cart";
+export const ORDERS_KEY = "aaa-grocery:orders";
+export const FULFILLMENT_KEY = "aaa-grocery:fulfillment";
+
+export const categories = ["Produce", "Meat & Seafood", "Dairy", "Bakery", "Pantry", "Frozen", "Beverages", "Household Essentials"] as const;
+export type Category = (typeof categories)[number];
 export type Product = {
-  id: string;
   slug: string;
   name: string;
-  category: string;
+  category: Category;
   price: number;
   unit: string;
-  image: string;
   description: string;
-  tags: string[];
-  storeIds: string[];
-};
-
-export type CartItem = {
-  productId: string;
-  slug: string;
-  name: string;
-  price: number;
-  unit: string;
   image: string;
-  quantity: number;
+  tags: string[];
 };
-
-export type Order = {
+export type CartItem = { slug: string; quantity: number };
+export type Fulfillment = "delivery" | "pickup";
+export type SavedOrder = {
   id: string;
-  status: string;
-  placedAt: string;
-  fulfillment: string;
-  items: CartItem[];
+  createdAt: string;
+  fulfillment: Fulfillment;
+  items: { product: Product; quantity: number }[];
   subtotal: number;
   fee: number;
   total: number;
-  substitution: string;
 };
 
-const stores = ["northside-market", "garden-district", "riverside-grocer"];
+const photos: Record<Category, string> = {
+  Produce: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=900&q=85",
+  "Meat & Seafood": "https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?auto=format&fit=crop&w=900&q=85",
+  Dairy: "https://images.unsplash.com/photo-1628088062854-d1870b4553da?auto=format&fit=crop&w=900&q=85",
+  Bakery: "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=900&q=85",
+  Pantry: "https://images.unsplash.com/photo-1606787366850-de6330128bfc?auto=format&fit=crop&w=900&q=85",
+  Frozen: "https://images.unsplash.com/photo-1563805042-7684c019e1cb?auto=format&fit=crop&w=900&q=85",
+  Beverages: "https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=900&q=85",
+  "Household Essentials": "https://images.unsplash.com/photo-1563453392212-326f5e854473?auto=format&fit=crop&w=900&q=85",
+};
 
-export const products: Product[] = [
-  { id: "apples", slug: "crisp-apples", name: "Crisp Gala Apples", category: "Produce", price: 1.49, unit: "per lb", image: "https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=900&q=85", description: "Sweet, crisp apples selected for a satisfying everyday snack.", tags: ["Vegetarian", "Gluten-free"], storeIds: stores },
-  { id: "avocado", slug: "ripe-avocados", name: "Ripe Hass Avocados", category: "Produce", price: 1.25, unit: "each", image: "https://images.unsplash.com/photo-1523049673857-eb18f1d7b578?auto=format&fit=crop&w=900&q=85", description: "Creamy, ready-to-enjoy avocados with a rich, buttery texture.", tags: ["Vegan", "Gluten-free"], storeIds: stores },
-  { id: "tomatoes", slug: "heirloom-tomatoes", name: "Heirloom Tomatoes", category: "Produce", price: 3.99, unit: "per lb", image: "https://images.unsplash.com/photo-1546094096-0df4bcaaa337?auto=format&fit=crop&w=900&q=85", description: "Colorful, juicy tomatoes with a bright, garden-fresh flavor.", tags: ["Vegan", "Gluten-free"], storeIds: stores },
-  { id: "greens", slug: "baby-spinach", name: "Baby Spinach", category: "Produce", price: 3.49, unit: "5 oz bag", image: "https://images.unsplash.com/photo-1576045057995-568f588f82fb?auto=format&fit=crop&w=900&q=85", description: "Tender baby spinach, washed and ready for salads or sautés.", tags: ["Vegan"], storeIds: stores },
-  { id: "carrots", slug: "rainbow-carrots", name: "Rainbow Carrots", category: "Produce", price: 2.99, unit: "1 lb bunch", image: "https://images.unsplash.com/photo-1445282768818-728615cc910a?auto=format&fit=crop&w=900&q=85", description: "A colorful bunch of sweet, crunchy seasonal carrots.", tags: ["Vegan", "Gluten-free"], storeIds: stores },
-  { id: "chicken", slug: "chicken-breast", name: "Free-Range Chicken Breast", category: "Meat & Seafood", price: 8.99, unit: "per lb", image: "https://images.unsplash.com/photo-1604503468506-a8da13d82791?auto=format&fit=crop&w=900&q=85", description: "Lean, versatile chicken breast for a weeknight favorite.", tags: ["No antibiotics ever"], storeIds: stores },
-  { id: "salmon", slug: "atlantic-salmon", name: "Atlantic Salmon Fillet", category: "Meat & Seafood", price: 12.99, unit: "per lb", image: "https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?auto=format&fit=crop&w=900&q=85", description: "A tender salmon fillet, delicious roasted, grilled, or pan-seared.", tags: ["Responsibly sourced"], storeIds: stores },
-  { id: "eggs", slug: "farm-eggs", name: "Pasture-Raised Eggs", category: "Dairy", price: 5.49, unit: "12 count", image: "https://images.unsplash.com/photo-1506976785307-8732e854ad03?auto=format&fit=crop&w=900&q=85", description: "A dozen farm eggs for breakfast, baking, and everything in between.", tags: ["Pasture-raised"], storeIds: stores },
-  { id: "milk", slug: "whole-milk", name: "Local Whole Milk", category: "Dairy", price: 4.29, unit: "half gallon", image: "https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=900&q=85", description: "Creamy whole milk from a nearby dairy, kept chilled.", tags: ["Local"], storeIds: stores },
-  { id: "cheddar", slug: "sharp-cheddar", name: "Aged Sharp Cheddar", category: "Dairy", price: 6.49, unit: "8 oz", image: "https://images.unsplash.com/photo-1486297678162-eb2a19b0a32d?auto=format&fit=crop&w=900&q=85", description: "Aged cheddar with a pleasantly bold, savory finish.", tags: ["Vegetarian"], storeIds: stores },
-  { id: "bread", slug: "sourdough-loaf", name: "Country Sourdough Loaf", category: "Bakery", price: 6.99, unit: "loaf", image: "https://images.unsplash.com/photo-1585478259715-876acc5be8eb?auto=format&fit=crop&w=900&q=85", description: "A golden-crusted sourdough loaf with a soft, airy center.", tags: ["Small-batch"], storeIds: stores },
-  { id: "croissants", slug: "butter-croissants", name: "Butter Croissants", category: "Bakery", price: 5.99, unit: "4 count", image: "https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=900&q=85", description: "Flaky, buttery croissants baked fresh for a special breakfast.", tags: ["Small-batch"], storeIds: stores },
-  { id: "oats", slug: "rolled-oats", name: "Organic Rolled Oats", category: "Pantry", price: 4.49, unit: "18 oz", image: "https://images.unsplash.com/photo-1517673132405-a56a62b18caf?auto=format&fit=crop&w=900&q=85", description: "Whole-grain rolled oats for warm breakfasts and homemade baking.", tags: ["Organic", "Vegan"], storeIds: stores },
-  { id: "pasta", slug: "rigatoni-pasta", name: "Bronze-Cut Rigatoni", category: "Pantry", price: 3.79, unit: "16 oz", image: "https://images.unsplash.com/photo-1551462147-ff29053bfc14?auto=format&fit=crop&w=900&q=85", description: "Ridged bronze-cut pasta that holds on to your favorite sauce.", tags: ["Vegetarian"], storeIds: stores },
-  { id: "coffee", slug: "house-coffee", name: "Neighborhood House Coffee", category: "Beverages", price: 11.99, unit: "12 oz bag", image: "https://images.unsplash.com/photo-1559525839-b184a4d698c7?auto=format&fit=crop&w=900&q=85", description: "A balanced, medium-roast coffee for slow mornings.", tags: ["Fair trade"], storeIds: stores },
-  { id: "juice", slug: "orange-juice", name: "Fresh Orange Juice", category: "Beverages", price: 5.49, unit: "32 fl oz", image: "https://images.unsplash.com/photo-1600271886742-f049cd451bba?auto=format&fit=crop&w=900&q=85", description: "Bright, refreshing orange juice with a fresh citrus taste.", tags: ["No added sugar"], storeIds: stores },
-  { id: "icecream", slug: "vanilla-ice-cream", name: "Vanilla Bean Ice Cream", category: "Frozen", price: 6.99, unit: "pint", image: "https://images.unsplash.com/photo-1501446529957-6226bd447c46?auto=format&fit=crop&w=900&q=85", description: "A smooth, creamy frozen treat made with real vanilla bean.", tags: ["Vegetarian"], storeIds: stores },
-  { id: "peas", slug: "frozen-sweet-peas", name: "Frozen Sweet Peas", category: "Frozen", price: 2.99, unit: "12 oz", image: "https://images.unsplash.com/photo-1587735243615-c03f25aaff15?auto=format&fit=crop&w=900&q=85", description: "Sweet garden peas picked and frozen at their freshest.", tags: ["Vegan"], storeIds: stores },
-  { id: "soap", slug: "dish-soap", name: "Plant-Based Dish Soap", category: "Household Essentials", price: 4.99, unit: "16 fl oz", image: "https://images.unsplash.com/photo-1600857544200-b2f666a9a2ec?auto=format&fit=crop&w=900&q=85", description: "A gentle, effective dish soap made with plant-based ingredients.", tags: ["Plant-based"], storeIds: stores },
-  { id: "towels", slug: "paper-towels", name: "Recycled Paper Towels", category: "Household Essentials", price: 7.49, unit: "2 rolls", image: "https://images.unsplash.com/photo-1583947215259-38e31be8751f?auto=format&fit=crop&w=900&q=85", description: "Absorbent everyday paper towels made with recycled material.", tags: ["Recycled"], storeIds: stores },
+const entries: [Category, string, number, string, string[]][] = [
+  ["Produce", "Honeycrisp Apples", 1.29, "each", ["Vegan"]], ["Produce", "Avocados", 1.49, "each", ["Vegan"]],
+  ["Produce", "Baby Spinach", 3.49, "5 oz bag", ["Vegan"]], ["Produce", "Organic Bananas", 0.79, "per lb", ["Organic"]],
+  ["Produce", "English Cucumber", 1.79, "each", ["Vegan"]], ["Produce", "Heirloom Tomatoes", 4.99, "1 lb", ["Vegan"]],
+  ["Produce", "Rainbow Carrots", 2.99, "1 bunch", ["Vegan"]], ["Produce", "Sweet Bell Peppers", 3.49, "3 count", ["Vegan"]],
+  ["Meat & Seafood", "Atlantic Salmon Fillet", 10.99, "per lb", ["Fresh"]], ["Meat & Seafood", "Chicken Breast", 7.49, "per lb", ["Fresh"]],
+  ["Meat & Seafood", "Ground Beef 85% Lean", 6.99, "1 lb", ["Fresh"]], ["Meat & Seafood", "Pork Tenderloin", 8.99, "per lb", ["Fresh"]],
+  ["Meat & Seafood", "Large Raw Shrimp", 9.99, "12 oz", ["Frozen"]], ["Meat & Seafood", "Ground Turkey", 5.99, "1 lb", ["Fresh"]],
+  ["Meat & Seafood", "Chicken Thighs", 5.49, "per lb", ["Fresh"]], ["Meat & Seafood", "Wild Cod Fillets", 11.49, "12 oz", ["Fresh"]],
+  ["Dairy", "Whole Milk", 4.29, " half gallon", ["Refrigerated"]], ["Dairy", "Large Brown Eggs", 5.49, "12 count", ["Vegetarian"]],
+  ["Dairy", "Greek Yogurt", 5.99, "32 oz", ["High protein"]], ["Dairy", "Sharp Cheddar", 4.99, "8 oz", ["Vegetarian"]],
+  ["Dairy", "Salted Butter", 4.79, "16 oz", ["Vegetarian"]], ["Dairy", "Oat Milk", 4.49, "half gallon", ["Dairy-free"]],
+  ["Dairy", "Cottage Cheese", 3.99, "16 oz", ["High protein"]], ["Dairy", "Mozzarella Cheese", 4.29, "8 oz", ["Vegetarian"]],
+  ["Bakery", "Country Sourdough", 6.49, "loaf", ["Fresh baked"]], ["Bakery", "Butter Croissants", 5.99, "4 count", ["Fresh baked"]],
+  ["Bakery", "Whole Wheat Sandwich Bread", 4.29, "loaf", ["Whole grain"]], ["Bakery", "Blueberry Muffins", 5.49, "4 count", ["Fresh baked"]],
+  ["Bakery", "Everything Bagels", 4.99, "6 count", ["Fresh baked"]], ["Bakery", "Flour Tortillas", 3.49, "10 count", ["Bakery"]],
+  ["Bakery", "Chocolate Chip Cookies", 5.99, "12 count", ["Bakery"]], ["Bakery", "Brioche Burger Buns", 4.49, "4 count", ["Bakery"]],
+  ["Pantry", "Extra Virgin Olive Oil", 12.99, "500 ml", ["Mediterranean"]], ["Pantry", "San Marzano Tomatoes", 3.49, "28 oz", ["Vegan"]],
+  ["Pantry", "Jasmine Rice", 7.99, "2 lb", ["Vegan"]], ["Pantry", "Penne Pasta", 2.49, "1 lb", ["Vegan"]],
+  ["Pantry", "Creamy Peanut Butter", 4.99, "16 oz", ["Vegan"]], ["Pantry", "Maple Syrup", 9.99, "12 oz", ["Vegan"]],
+  ["Pantry", "Black Beans", 1.79, "15 oz", ["Vegan"]], ["Pantry", "Rolled Oats", 5.49, "18 oz", ["Whole grain"]],
+  ["Frozen", "Wild Blueberries", 6.49, "16 oz", ["Vegan"]], ["Frozen", "Peas & Carrots", 2.99, "12 oz", ["Vegan"]],
+  ["Frozen", "Margherita Pizza", 8.99, "each", ["Vegetarian"]], ["Frozen", "Vanilla Bean Ice Cream", 6.99, "pint", ["Gluten-free"]],
+  ["Frozen", "Edamame", 3.99, "12 oz", ["Vegan"]], ["Frozen", "Waffle Fries", 4.49, "20 oz", ["Vegan"]],
+  ["Frozen", "Wild-Caught Fish Sticks", 7.49, "18 oz", ["Family favorite"]], ["Frozen", "Mango Chunks", 5.99, "16 oz", ["Vegan"]],
+  ["Beverages", "Sparkling Water", 5.99, "8 pack", ["Zero sugar"]], ["Beverages", "Cold Brew Coffee", 5.49, "32 oz", ["Caffeinated"]],
+  ["Beverages", "Fresh Orange Juice", 6.99, "half gallon", ["No added sugar"]], ["Beverages", "Green Tea", 4.49, "20 bags", ["Caffeinated"]],
+  ["Beverages", "Coconut Water", 3.49, "1 liter", ["Hydrating"]], ["Beverages", "Lemonade", 4.29, "64 oz", ["Chilled"]],
+  ["Beverages", "Ground Coffee", 10.99, "12 oz", ["Fair trade"]], ["Beverages", "Ginger Kombucha", 3.99, "16 oz", ["Probiotic"]],
+  ["Household Essentials", "Dish Soap", 4.49, "18 oz", ["Plant based"]], ["Household Essentials", "Paper Towels", 8.99, "6 rolls", ["Everyday essential"]],
+  ["Household Essentials", "Laundry Detergent", 12.99, "50 oz", ["Concentrated"]], ["Household Essentials", "Kitchen Trash Bags", 7.49, "30 count", ["Strong & reliable"]],
+  ["Household Essentials", "All-Purpose Cleaner", 5.99, "24 oz", ["Plant based"]], ["Household Essentials", "Recycled Napkins", 3.49, "100 count", ["Recycled"]],
+  ["Household Essentials", "Hand Soap", 3.99, "12 oz", ["Gentle"]], ["Household Essentials", "Sponges", 4.49, "3 count", ["Reusable"]],
 ];
 
-export const categories = ["Produce", "Meat & Seafood", "Dairy", "Bakery", "Pantry", "Frozen", "Beverages", "Household Essentials"];
+export const products: Product[] = entries.map(([category, name, price, unit, tags]) => ({
+  slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+  name,
+  category,
+  price,
+  unit: unit.trim(),
+  description: `${name}, selected for an easy everyday shop. Product availability, description, and price are illustrative sample information and may not reflect any real retailer.`,
+  image: photos[category],
+  tags,
+}));
 
-export const storeDetails: Record<string, { name: string; neighborhood: string; description: string }> = {
-  "northside-market": { name: "Northside Market", neighborhood: "Northside", description: "A friendly neighborhood market with fresh produce and everyday favorites." },
-  "garden-district": { name: "Garden District Grocer", neighborhood: "Garden District", description: "Seasonal picks, local bakery treats, and pantry staples close to home." },
-  "riverside-grocer": { name: "Riverside Grocer", neighborhood: "Riverside", description: "A curated selection of fresh food and household essentials for your week." },
-};
-
-export function getCart(): CartItem[] {
-  const saved = readLocal<CartItem[]>("cart", []);
-  if (!Array.isArray(saved)) return [];
-  return saved.flatMap((item) => {
-    if (!item || typeof item !== "object") return [];
-    const product = products.find((entry) => entry.id === item.productId || entry.slug === item.slug);
-    if (!product) return [];
-    const quantity = Number(item.quantity);
-    return [{ productId: product.id, slug: product.slug, name: product.name, price: product.price, unit: product.unit, image: product.image, quantity: Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity)) : 1 }];
-  });
+export function getProduct(slug: string) {
+  return products.find((product) => product.slug === slug);
 }
 
-export function saveCart(items: CartItem[]) {
-  writeLocal("cart", items);
+export function readCart(): CartItem[] {
+  return readLocal<CartItem[]>(CART_KEY, []);
 }
 
-export function getOrders(): Order[] {
-  return readLocal<Order[]>("orders", []);
+export function saveCart(cart: CartItem[]) {
+  writeLocal(CART_KEY, cart);
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("aaa-cart-change"));
 }
 
-export function seedOrders(): Order[] {
-  const existing = getOrders();
-  if (existing.length) return existing;
-  const sampleItems: CartItem[] = [
-    { productId: "apples", slug: "crisp-apples", name: "Crisp Gala Apples", price: 1.49, unit: "per lb", image: products[0].image, quantity: 2 },
-    { productId: "bread", slug: "sourdough-loaf", name: "Country Sourdough Loaf", price: 6.99, unit: "loaf", image: products[10].image, quantity: 1 },
-  ];
-  const subtotal = sampleItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const order: Order = { id: "demo-1042", status: "Completed", placedAt: "2025-02-18T11:30:00.000Z", fulfillment: "Pickup", items: sampleItems, subtotal, fee: 0, total: subtotal, substitution: "No substitutions were needed." };
-  writeLocal("orders", [order]);
-  return [order];
+export function cartCount(cart: CartItem[]) {
+  return cart.reduce((sum, item) => sum + item.quantity, 0);
 }
 
-export function money(value: number) {
-  return `$${value.toFixed(2)}`;
+export function cartSubtotal(cart: CartItem[]) {
+  return cart.reduce((sum, item) => sum + (getProduct(item.slug)?.price ?? 0) * item.quantity, 0);
+}
+
+export function money(amount: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
+}
+
+export function addProduct(cart: CartItem[], slug: string): CartItem[] {
+  const found = cart.find((item) => item.slug === slug);
+  return found
+    ? cart.map((item) => item.slug === slug ? { ...item, quantity: item.quantity + 1 } : item)
+    : [...cart, { slug, quantity: 1 }];
 }

@@ -1,0 +1,16 @@
+"use client";
+
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import GroceryNav from "@/components/grocery-nav";
+import { readLocal } from "@/lib/persist";
+import { findProduct, money, ORDERS_KEY, type DemoOrder } from "@/lib/grocery-data";
+
+export default function OrderDetail() {
+  const params = useParams<{ id: string }>();
+  const [order, setOrder] = useState<DemoOrder | undefined>();
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => { setOrder(readLocal<DemoOrder[]>(ORDERS_KEY, []).find((entry) => entry.id === params.id)); setLoaded(true); }, [params.id]);
+  return <main className="min-h-screen bg-[#faf7f0] text-[#183b2b]"><GroceryNav/><div className="mx-auto max-w-3xl px-5 py-12">{order ? <><div className="rounded-3xl bg-[#e5f2e8] p-7 text-center"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#287a4b] text-2xl text-white">✓</div><p className="mt-4 text-sm font-bold uppercase tracking-wider text-[#287a4b]">Demo order saved</p><h1 className="mt-2 font-serif text-4xl font-bold">Thanks for trying AAA Grocery.</h1><p className="mt-3 leading-6 text-[#617367]">This order is saved only in this browser. It has not been sent to a retailer, and no payment was taken.</p></div><section className="mt-6 rounded-2xl border border-[#e9e2d7] bg-white p-6"><div className="flex flex-wrap justify-between gap-2"><h2 className="font-serif text-2xl font-bold">Order details</h2><span className="text-sm text-[#617367]">{new Date(order.createdAt).toLocaleString()}</span></div><p className="mt-1 text-sm text-[#617367]">Confirmation: {order.id}</p><div className="mt-5 divide-y divide-[#eee8de]">{order.items.map((item) => { const product = findProduct(item.slug); return <div key={item.slug} className="flex justify-between gap-3 py-3"><span>{product?.name ?? "Grocery item"} × {item.quantity}</span><span className="font-semibold">{money((product?.price ?? 0) * item.quantity)}</span></div>; })}</div><div className="mt-3 space-y-2 border-t border-[#e9e2d7] pt-4 text-sm"><div className="flex justify-between"><span>Subtotal</span><span>{money(order.subtotal)}</span></div><div className="flex justify-between"><span>{order.fulfillment} fee (demo)</span><span>{money(order.fee)}</span></div><div className="flex justify-between pt-2 text-base font-bold"><span>Total</span><span>{money(order.total)}</span></div></div><p className="mt-4 text-sm text-[#617367]">Fulfillment selection: {order.fulfillment} (simulated)</p></section><div className="mt-6 flex flex-wrap gap-5"><Link href="/" className="font-semibold text-[#287a4b] underline">Continue shopping</Link><Link href="/account" className="font-semibold text-[#287a4b] underline">View order history</Link><Link href="/help" className="font-semibold text-[#287a4b] underline">Help & FAQs</Link></div></> : <div className="rounded-2xl border border-[#e9e2d7] bg-white p-9 text-center"><h1 className="font-serif text-3xl font-bold">{loaded ? "We couldn’t find that order" : "Loading order details…"}</h1><p className="mt-3 text-[#617367]">{loaded ? "Orders are saved locally, so this order may not exist in this browser." : ""}</p><Link href="/account" className="mt-5 inline-block font-semibold text-[#287a4b] underline">Go to order history</Link></div>}</div></main>;
+}

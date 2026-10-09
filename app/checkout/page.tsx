@@ -1,36 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import ShopHeader from "@/components/shop-header";
+import { useEffect, useMemo, useState } from "react";
 import { Button, Card, EmptyState } from "@/components/ui";
-import { findProduct } from "@/lib/shop-data";
-import { CartLine, DemoOrder, Fulfillment, getCart, getOrders, money, saveCart, saveOrders, subtotalFor } from "@/lib/shop-state";
+import ShopHeader from "@/components/shop-header";
+import { findProduct, formatPrice } from "@/lib/catalog";
+import { getCart, getOrders, saveCart, saveOrders, type CartLine } from "@/lib/shop-state";
 
 export default function CheckoutPage() {
-  const router = useRouter();
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [fulfillment, setFulfillment] = useState<Fulfillment>("Delivery");
-  const [placed, setPlaced] = useState(false);
+  const [fulfillment, setFulfillment] = useState<"delivery" | "pickup">("delivery");
+  const [name, setName] = useState("");
+  const [address, setAddress] = useState("");
+  const [error, setError] = useState("");
   useEffect(() => setCart(getCart()), []);
-  const subtotal = subtotalFor(cart);
-  const fee = fulfillment === "Delivery" && cart.length ? 4.99 : 0;
-  const items = cart.flatMap((line) => {
-    const product = findProduct(line.productId);
-    return product ? [{ productId: product.id, name: product.name, image: product.image, unit: product.unit, unitPrice: product.price, quantity: line.quantity }] : [];
-  });
+  const lines = useMemo(() => cart.map((line) => ({ line, product: findProduct(line.productId) })).filter((item) => item.product), [cart]);
+  const subtotal = lines.reduce((sum, item) => sum + (item.product?.price ?? 0) * item.line.quantity, 0);
+  const fee = fulfillment === "delivery" ? 4.99 : 0;
 
-  function placeDemoOrder() {
-    if (!items.length) return;
-    const order: DemoOrder = { id: `demo-${Date.now()}`, createdAt: new Date().toISOString(), status: "Confirmed — demo", fulfillment, items, subtotal, fee, total: subtotal + fee };
+  function placeDemoOrder(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!cart.length) return;
+    const order = { id: `DEMO-${Date.now().toString().slice(-8)}`, createdAt: new Date().toISOString(), items: cart, subtotal, fulfillment, fee, total: subtotal + fee, name: name.trim(), address: fulfillment === "delivery" ? address.trim() : "" };
     saveOrders([order, ...getOrders()]);
     saveCart([]);
-    setPlaced(true);
-    router.push(`/orders/${order.id}`);
+    window.location.href = `/orders/${order.id}`;
   }
 
-  return <main className="min-h-screen bg-[#FAF7F0] text-[#183B2B]"><ShopHeader /><section className="mx-auto max-w-5xl px-4 py-10 sm:px-6"><p className="text-sm font-semibold uppercase tracking-widest text-[#287A4B]">Review your basket</p><h1 className="mt-2 font-serif text-4xl font-bold">Demo checkout</h1>
-    {!items.length ? <div className="mt-8 rounded-2xl border border-[#e8e2d7] bg-white p-8"><EmptyState title="Your basket is empty" message="Add some items before continuing to checkout." action={<Link href="/"><Button variant="primary">Shop groceries</Button></Link>} /></div> : <div className="mt-7 grid gap-6 md:grid-cols-[1fr_320px]"><Card className="rounded-xl border border-[#e8e2d7] bg-white p-6"><h2 className="text-xl font-semibold">Choose fulfillment</h2><p className="mt-2 text-sm text-[#65746a]">This choice is for the demo only. No retailer receives a request.</p><div className="mt-5 grid gap-3 sm:grid-cols-2">{(["Delivery", "Pickup"] as Fulfillment[]).map((option) => <button key={option} onClick={() => setFulfillment(option)} className={`rounded-xl border p-4 text-left transition ${fulfillment === option ? "border-[#287A4B] bg-[#E5F2E8] ring-2 ring-[#287A4B]/20" : "border-[#e8e2d7] hover:border-[#287A4B]"}`}><span className="font-semibold">{option}</span><span className="mt-1 block text-sm text-[#65746a]">{option === "Delivery" ? "Sample delivery fee: $4.99" : "No pickup fee"}</span></button>)}</div><h2 className="mt-8 text-xl font-semibold">Items</h2><div className="mt-3 divide-y divide-[#eee9df]">{items.map((item) => <div key={item.productId} className="flex justify-between py-3 text-sm"><span>{item.name} × {item.quantity}</span><span>{money(item.unitPrice * item.quantity)}</span></div>)}</div></Card><Card className="h-fit rounded-xl border border-[#e8e2d7] bg-white p-5"><h2 className="text-xl font-semibold">Cost summary</h2><div className="mt-5 flex justify-between"><span>Subtotal</span><span>{money(subtotal)}</span></div><div className="mt-3 flex justify-between"><span>{fulfillment} fee</span><span>{fee ? money(fee) : "Free"}</span></div><div className="my-5 border-t border-[#e8e2d7]" /><div className="flex justify-between text-lg font-bold"><span>Demo total</span><span>{money(subtotal + fee)}</span></div><p className="mt-4 text-xs leading-5 text-[#65746a]">No payment is collected. This creates a locally saved sample order only; nothing is sent to a retailer.</p><Button variant="primary" size="lg" onClick={placeDemoOrder} className="mt-5 w-full">Place demo order</Button>{placed && <p role="status" className="mt-3 text-sm text-[#287A4B]">Your demo order is saved.</p>}</Card></div>}
-  </section></main>;
+  return <div className="min-h-screen bg-[#FAF7F0] text-[#183B2B]"><ShopHeader /><main className="mx-auto max-w-4xl px-5 py-10"><p className="text-sm font-bold uppercase tracking-[.16em] text-[#287A4B]">Demo checkout</p><h1 className="mt-2 font-serif text-4xl">Choose how to get it</h1>{lines.length === 0 ? <div className="mt-8"><EmptyState title="Your basket is empty" message="Add groceries to your basket before checking out." action={<Link href="/" className="rounded-full bg-[#287A4B] px-5 py-3 font-semibold text-white">Shop groceries</Link>} /></div> : <form onSubmit={placeDemoOrder} className="mt-8 grid gap-6 md:grid-cols-[1fr_300px]"><div className="space-y-5"><Card className="border border-[#ece6da] bg-white p-6"><h2 className="font-serif text-2xl">Fulfillment</h2><div className="mt-4 grid gap-3 sm:grid-cols-2"><button type="button" onClick={() => setFulfillment("delivery")} className={`rounded-xl border p-4 text-left ${fulfillment === "delivery" ? "border-[#287A4B] bg-[#E5F2E8]" : "border-[#ded8cc]"}`}><strong>Delivery</strong><span className="mt-1 block text-sm">Demo fee: $4.99</span></button><button type="button" onClick={() => setFulfillment("pickup")} className={`rounded-xl border p-4 text-left ${fulfillment === "pickup" ? "border-[#287A4B] bg-[#E5F2E8]" : "border-[#ded8cc]"}`}><strong>Pickup</strong><span className="mt-1 block text-sm">No demo fee</span></button></div><label className="mt-5 block text-sm font-semibold">Your name<input required value={name} onChange={(event) => setName(event.target.value)} className="mt-2 w-full rounded-xl border border-[#ded8cc] px-4 py-3 font-normal outline-none focus:border-[#287A4B]" /></label>{fulfillment === "delivery" && <label className="mt-4 block text-sm font-semibold">Delivery address<input required value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Street address" className="mt-2 w-full rounded-xl border border-[#ded8cc] px-4 py-3 font-normal outline-none focus:border-[#287A4B]" /></label>}</Card><Card className="border border-[#ece6da] bg-white p-6"><h2 className="font-serif text-2xl">Your items</h2>{lines.map(({ line, product }) => product && <div key={line.productId} className="mt-4 flex justify-between gap-3 text-sm"><span>{product.name} × {line.quantity}</span><span>{formatPrice(product.price * line.quantity)}</span></div>)}</Card></div><Card className="h-fit border border-[#ece6da] bg-white p-6"><h2 className="font-serif text-2xl">Cost breakdown</h2><div className="mt-5 space-y-3 text-sm"><div className="flex justify-between"><span>Subtotal</span><span>{formatPrice(subtotal)}</span></div><div className="flex justify-between"><span>{fulfillment === "delivery" ? "Demo delivery fee" : "Pickup fee"}</span><span>{formatPrice(fee)}</span></div><div className="flex justify-between border-t border-[#ece6da] pt-3 text-base font-bold"><span>Demo total</span><span>{formatPrice(subtotal + fee)}</span></div></div><p className="mt-4 text-xs leading-5 text-[#718076]">No payment is collected. This will only save a demo order in this browser.</p>{error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}<Button type="submit" className="mt-5 w-full" size="lg">Place demo order</Button><p className="mt-3 text-center text-xs text-[#718076]">Nothing is sent to a retailer.</p></Card></form>}</main></div>;
 }

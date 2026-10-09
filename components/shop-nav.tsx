@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { getCart } from "@/lib/shop";
+import { getCart } from "@/lib/grocery";
 
 export default function ShopNav() {
   const [count, setCount] = useState(0);
