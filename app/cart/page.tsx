@@ -1,268 +1,266 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Badge, Button, Card, EmptyState } from "@/components/ui";
+import { Button, Card, EmptyState } from "@/components/ui";
 import { readLocal, writeLocal } from "@/lib/persist";
 
-const STORAGE_KEY = "lastmile:aaa-e-commerce-grocery:Store (seeded client-side data)";
+type RecordItem = { id: string; title: string; notes: string; createdAt: string };
+
+type ProductDetails = {
+  price?: unknown;
+  unitPrice?: unknown;
+  quantity?: unknown;
+  qty?: unknown;
+  cartQuantity?: unknown;
+  size?: unknown;
+  unit?: unknown;
+  category?: unknown;
+  description?: unknown;
+  notes?: unknown;
+  product?: unknown;
+};
 
 type CartLine = {
-  id: string;
-  title: string;
-  price: number;
+  record: RecordItem;
+  details: Record<string, unknown>;
   quantity: number;
-  image?: string;
-  [key: string]: unknown;
+  price: number;
 };
 
-type Fulfillment = "delivery" | "pickup";
+const STORAGE_KEY = "lastmile:aaa-e-commerce-grocery:Product (static sample catalog)";
 
-type StoredData = {
-  [key: string]: unknown;
-  cart?: unknown;
-  orders?: unknown;
-};
-
-function asObject(value: unknown): StoredData | null {
+function asObject(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? (value as StoredData)
-    : null;
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
-function asCartLine(value: unknown): CartLine | null {
-  if (!value || typeof value !== "object") return null;
-  const item = value as Record<string, unknown>;
-  const title = String(item.title ?? item.name ?? item.productName ?? "Grocery item");
-  const priceValue = Number(item.price ?? item.unitPrice ?? item.amount ?? 0);
-  const quantityValue = Number(item.quantity ?? item.qty ?? 1);
-  return {
-    ...item,
-    id: String(item.id ?? item.productId ?? title),
-    title,
-    price: Number.isFinite(priceValue) ? priceValue : 0,
-    quantity: Number.isFinite(quantityValue) ? Math.max(1, Math.floor(quantityValue)) : 1,
-    image: typeof item.image === "string" ? item.image : undefined,
-  };
+function detailsFor(notes: string): Record<string, unknown> {
+  try {
+    const parsed: unknown = JSON.parse(notes);
+    const root = asObject(parsed);
+    const nested = asObject(root.product);
+    return { ...nested, ...root };
+  } catch {
+    return {};
+  }
 }
 
-function readCart(data: unknown): CartLine[] {
-  if (Array.isArray(data)) return data.map(asCartLine).filter((line): line is CartLine => line !== null);
-  const root = asObject(data);
-  if (!root) return [];
-  const nested = asObject(root.cart);
-  const candidates = Array.isArray(root.cart)
-    ? root.cart
-    : Array.isArray(nested?.items)
-      ? nested.items
-      : Array.isArray(root.items)
-        ? root.items
-        : Array.isArray(root.basket)
-          ? root.basket
-          : [];
-  return candidates.map(asCartLine).filter((line): line is CartLine => line !== null);
+function numberFrom(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(/[^\d.-]/g, ""));
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
 }
 
-function money(amount: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
+function linesFrom(value: unknown): CartLine[] {
+  const source = Array.isArray(value)
+    ? value
+    : Array.isArray(asObject(value).cart)
+      ? (asObject(value).cart as unknown[])
+      : Array.isArray(asObject(value).items)
+        ? (asObject(value).items as unknown[])
+        : [];
+
+  const merged = new Map<string, CartLine>();
+  for (const candidate of source) {
+    const item = asObject(candidate);
+    if (typeof item.id !== "string" || typeof item.title !== "string") continue;
+    const record: RecordItem = {
+      id: item.id,
+      title: item.title,
+      notes: typeof item.notes === "string" ? item.notes : "",
+      createdAt: typeof item.createdAt === "string" ? item.createdAt : "",
+    };
+    const details = detailsFor(record.notes);
+    const quantity = Math.max(1, Math.floor(numberFrom(details.quantity ?? details.qty ?? details.cartQuantity) ?? 1));
+    const price = Math.max(0, numberFrom(details.price ?? details.unitPrice) ?? 0);
+    const previous = merged.get(record.id);
+    if (previous) {
+      previous.quantity += quantity;
+    } else {
+      merged.set(record.id, { record, details, quantity, price });
+    }
+  }
+  return Array.from(merged.values());
+}
+
+function money(value: number): string {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
+}
+
+function detailText(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 export default function CartPage() {
-  const router = useRouter();
-  const [ready, setReady] = useState(false);
-  const [savedData, setSavedData] = useState<unknown>(null);
-  const [items, setItems] = useState<CartLine[]>([]);
-  const [fulfillment, setFulfillment] = useState<Fulfillment>("delivery");
+  const [lines, setLines] = useState<CartLine[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
-  const [placing, setPlacing] = useState(false);
 
   useEffect(() => {
-    const data = readLocal<unknown>(STORAGE_KEY, {});
-    setSavedData(data);
-    setItems(readCart(data));
-    setReady(true);
+    try {
+      setLines(linesFrom(readLocal<unknown>(STORAGE_KEY, [])));
+    } catch {
+      setError("Your saved cart could not be read. Try refreshing, or keep shopping and add items again.");
+    } finally {
+      setLoaded(true);
+    }
   }, []);
 
-  const subtotal = useMemo(
-    () => items.reduce((sum, item) => sum + item.price * item.quantity, 0),
-    [items],
-  );
-  const deliveryFee = fulfillment === "delivery" && items.length ? 4.99 : 0;
-  const serviceFee = items.length ? 1.49 : 0;
-  const tax = (subtotal + deliveryFee + serviceFee) * 0.0825;
-  const total = subtotal + deliveryFee + serviceFee + tax;
+  const itemCount = useMemo(() => lines.reduce((total, line) => total + line.quantity, 0), [lines]);
+  const subtotal = useMemo(() => lines.reduce((total, line) => total + line.price * line.quantity, 0), [lines]);
 
-  function saveItems(next: CartLine[]) {
-    setItems(next);
-    setError("");
-    const root = asObject(savedData);
-    let updated: unknown;
-    if (Array.isArray(savedData)) {
-      updated = next;
-    } else if (root) {
-      const previousCart = asObject(root.cart);
-      updated = {
-        ...root,
-        cart: previousCart && Array.isArray(previousCart.items)
-          ? { ...previousCart, items: next }
-          : next,
-      };
-    } else {
-      updated = { cart: next };
-    }
+  function saveLines(next: CartLine[]) {
+    const records = next.map(({ record, quantity }) => {
+      let notes: string;
+      const parsed = detailsFor(record.notes);
+      try {
+        const original: unknown = JSON.parse(record.notes);
+        if (original && typeof original === "object" && !Array.isArray(original)) {
+          notes = JSON.stringify({ ...(original as Record<string, unknown>), quantity });
+        } else {
+          notes = JSON.stringify({ description: record.notes, quantity });
+        }
+      } catch {
+        notes = JSON.stringify({ description: record.notes, quantity });
+      }
+      // Keep the saved product metadata intact while updating only its cart quantity.
+      void parsed;
+      return { ...record, notes };
+    });
     try {
-      writeLocal(STORAGE_KEY, updated);
-      setSavedData(updated);
+      writeLocal(STORAGE_KEY, records);
+      setLines(next);
+      setError("");
     } catch {
-      setError("We couldn’t save that basket change. Please try again.");
+      setError("That cart change could not be saved. Your current cart is still available on this screen.");
     }
   }
 
-  function changeQuantity(id: string, amount: number) {
-    const next = items
-      .map((item) => item.id === id ? { ...item, quantity: item.quantity + amount } : item)
-      .filter((item) => item.quantity > 0);
-    saveItems(next);
+  function changeQuantity(id: string, delta: number) {
+    const next = lines
+      .map((line) => line.record.id === id ? { ...line, quantity: line.quantity + delta } : line)
+      .filter((line) => line.quantity > 0);
+    saveLines(next);
   }
 
-  function placeOrder() {
-    if (!items.length || placing) return;
-    setError("");
-    setPlacing(true);
-    const orderId = `demo-${Date.now().toString(36)}`;
-    const order = {
-      id: orderId,
-      status: "Order received",
-      simulated: true,
-      fulfillment,
-      items: items.map((item) => ({ ...item })),
-      subtotal,
-      deliveryFee,
-      serviceFee,
-      tax,
-      total,
-      createdAt: new Date().toISOString(),
-    };
-    const root = asObject(savedData) ?? {};
-    const existingOrders = Array.isArray(root.orders) ? root.orders : [];
-    const updated = { ...root, cart: [], orders: [...existingOrders, order] };
-    try {
-      writeLocal(STORAGE_KEY, updated);
-      setSavedData(updated);
-      setItems([]);
-      router.push(`/orders/${encodeURIComponent(orderId)}`);
-    } catch {
-      setError("Your demo order couldn’t be saved. Your basket is still here—please try again.");
-      setPlacing(false);
-    }
-  }
-
-  if (!ready) {
-    return (
-      <main className="min-h-screen bg-[#faf9f7] px-5 py-10 text-[#1a1d21]">
-        <div className="mx-auto max-w-6xl animate-pulse rounded-3xl bg-white p-8 text-sm text-[#6f7378] shadow-sm">Loading your basket…</div>
-      </main>
-    );
+  function removeItem(id: string) {
+    saveLines(lines.filter((line) => line.record.id !== id));
   }
 
   return (
     <main className="min-h-screen bg-[#faf9f7] text-[#1a1d21]">
       <div className="mx-auto max-w-6xl px-5 pb-20 pt-8 sm:px-8 sm:pt-12">
-        <a href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-[#656a70] transition hover:text-[#1a1d21]">
-          <span aria-hidden="true">←</span> Keep shopping
-        </a>
-        <div className="mt-8 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-[#4f8cff]">Your neighborhood basket</p>
-            <h1 className="font-serif text-4xl font-semibold tracking-tight sm:text-5xl">Your basket<span className="text-[#4f8cff]">.</span></h1>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-[#6f7378]">A few good things, delivered on your terms. Review the demo costs before you place your order.</p>
-          </div>
-          {items.length > 0 && <Badge tone="brand">{items.reduce((sum, item) => sum + item.quantity, 0)} items</Badge>}
+        <div className="mb-9 flex items-center justify-between gap-4">
+          <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-[#1a1d21] transition hover:text-[#4f8cff]">
+            <span aria-hidden="true" className="text-lg">←</span> Back to shopping
+          </Link>
+          <span className="rounded-full border border-[#e9e7e2] bg-white px-3.5 py-2 text-xs font-semibold tracking-wide text-[#5c626a]">
+            SAMPLE STORE · DEMO DATA
+          </span>
         </div>
 
-        {error && <div role="alert" className="mt-6 rounded-2xl border border-[#f0c7c1] bg-[#fff6f4] px-4 py-3 text-sm text-[#9b3426]">{error}</div>}
+        <header className="mb-8 border-b border-[#e8e5df] pb-7">
+          <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-[#4f8cff]">Your fresh picks</p>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h1 className="font-serif text-4xl font-semibold tracking-tight sm:text-5xl">Your cart<span className="text-[#4f8cff]">.</span></h1>
+              <p className="mt-3 text-base text-[#656a71]">
+                {loaded ? `${itemCount} ${itemCount === 1 ? "item" : "items"} ready for review` : "Loading your saved cart…"}
+              </p>
+            </div>
+            {lines.length > 0 && (
+              <Link href="/checkout" className="hidden sm:block">
+                <Button variant="primary" size="md">Continue to checkout <span aria-hidden="true">→</span></Button>
+              </Link>
+            )}
+          </div>
+        </header>
 
-        {!items.length ? (
-          <Card className="mt-8 rounded-3xl border border-[#eeece8] bg-white p-8 shadow-sm sm:p-12">
+        <div className="mb-6 rounded-xl border border-[#dce8ff] bg-[#eef4ff] px-4 py-3 text-sm leading-6 text-[#3f536f] sm:px-5">
+          <span className="font-bold text-[#1a1d21]">Demo cart:</span> Products, prices, stock, fees, and fulfillment options are sample data only. Nothing here is reserved or connected to a live store.
+        </div>
+
+        {error && (
+          <div role="alert" className="mb-6 break-words rounded-xl border border-[#f1caca] bg-[#fff5f4] px-4 py-3 text-sm text-[#8f3535]">{error}</div>
+        )}
+
+        {!loaded ? (
+          <Card className="rounded-2xl border border-[#ebe8e2] bg-white p-8 text-sm text-[#656a71]">Getting your cart ready…</Card>
+        ) : lines.length === 0 ? (
+          <Card className="rounded-2xl border border-[#ebe8e2] bg-white px-5 py-4 sm:px-10 sm:py-8">
             <EmptyState
-              title="Your basket is taking a breather"
-              message="Head back to the shop and add a few fresh finds. They’ll be waiting here when you return."
+              title="Your cart is taking a breather"
+              message="Add something delicious from the sample catalog and it’ll show up here."
+              description="Your cart stays saved in this browser when storage is available."
               icon="🧺"
-              action={<Button variant="primary" onClick={() => router.push("/")}>Explore the shop</Button>}
               className="py-8"
             />
+            <div className="mt-2 flex justify-center">
+              <Link href="/"><Button variant="primary" size="md">Explore the aisles</Button></Link>
+            </div>
           </Card>
         ) : (
-          <div className="mt-8 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
-            <section aria-label="Basket items" className="space-y-4">
-              <Card className="overflow-hidden rounded-3xl border border-[#eeece8] bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b border-[#f0efed] px-5 py-4 sm:px-7">
-                  <h2 className="text-base font-bold">Basket items</h2>
-                  <span className="text-xs text-[#777b80]">Quantities can be changed anytime</span>
-                </div>
-                <ul className="divide-y divide-[#f0efed]">
-                  {items.map((item) => (
-                    <li key={item.id} className="flex gap-4 px-5 py-5 sm:gap-5 sm:px-7">
-                      <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#f4f2ee] text-2xl">
-                        {item.image ? <img src={item.image} alt="" className="h-full w-full object-cover" /> : "🥬"}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <h3 className="break-words pr-2 text-sm font-semibold leading-5">{item.title}</h3>
-                          <span className="whitespace-nowrap text-sm font-bold">{money(item.price * item.quantity)}</span>
-                        </div>
-                        <p className="mt-1 text-xs text-[#777b80]">{money(item.price)} each</p>
-                        <div className="mt-3 flex items-center justify-between">
-                          <div className="inline-flex items-center rounded-full border border-[#e8e6e2] bg-[#faf9f7] p-1">
-                            <button type="button" aria-label={`Decrease ${item.title} quantity`} onClick={() => changeQuantity(item.id, -1)} className="h-7 w-7 rounded-full text-lg leading-none text-[#51565c] transition hover:bg-white">−</button>
-                            <span className="w-8 text-center text-sm font-semibold">{item.quantity}</span>
-                            <button type="button" aria-label={`Increase ${item.title} quantity`} onClick={() => changeQuantity(item.id, 1)} className="h-7 w-7 rounded-full text-lg leading-none text-[#51565c] transition hover:bg-white">+</button>
-                          </div>
-                          <button type="button" onClick={() => saveItems(items.filter((candidate) => candidate.id !== item.id))} className="text-xs font-semibold text-[#777b80] underline decoration-[#d4d1cc] underline-offset-4 transition hover:text-[#b34332]">Remove</button>
+          <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_350px]">
+            <section aria-label="Cart items" className="space-y-3">
+              {lines.map((line) => {
+                const size = detailText(line.details.size);
+                const unit = detailText(line.details.unit);
+                const category = detailText(line.details.category);
+                const description = detailText(line.details.description) ?? detailText(line.details.notes);
+                return (
+                  <Card key={line.record.id} className="overflow-hidden rounded-2xl border border-[#ebe8e2] bg-white p-4 sm:p-5">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                      <div className="flex min-w-0 flex-1 items-start gap-4">
+                        <div aria-hidden="true" className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-[#f3f6fb] text-3xl">🥬</div>
+                        <div className="min-w-0 flex-1">
+                          {category && <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[#4f8cff]">{category}</p>}
+                          <h2 className="break-words text-lg font-semibold leading-snug">{line.record.title}</h2>
+                          {(size || unit) && <p className="mt-1 text-sm text-[#737880]">{[size, unit].filter(Boolean).join(" · ")}</p>}
+                          {description && <p className="mt-2 break-words text-sm leading-5 text-[#737880]">{description}</p>}
+                          <p className="mt-2 text-sm font-semibold">{money(line.price)} <span className="font-normal text-[#858990]">each</span></p>
                         </div>
                       </div>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-              <div className="rounded-2xl border border-[#e9e5de] bg-[#f3f0e9] px-5 py-4 text-xs leading-5 text-[#6f6c65]">
-                <span className="mr-2">✦</span>Demo checkout only. Prices, availability, fees, and tax are illustrative and aren’t a live quote.
-              </div>
+                      <div className="flex items-center justify-between gap-4 border-t border-[#f0eeea] pt-4 sm:w-[190px] sm:flex-col sm:items-end sm:border-0 sm:pt-0">
+                        <div className="inline-flex items-center rounded-full border border-[#e7e5e0] bg-[#faf9f7] p-1" aria-label={`Quantity for ${line.record.title}`}>
+                          <button type="button" onClick={() => changeQuantity(line.record.id, -1)} aria-label={`Decrease ${line.record.title} quantity`} className="flex h-8 w-8 items-center justify-center rounded-full text-lg transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#4f8cff]">−</button>
+                          <span className="min-w-9 text-center text-sm font-semibold" aria-live="polite">{line.quantity}</span>
+                          <button type="button" onClick={() => changeQuantity(line.record.id, 1)} aria-label={`Increase ${line.record.title} quantity`} className="flex h-8 w-8 items-center justify-center rounded-full text-lg transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#4f8cff]">+</button>
+                        </div>
+                        <div className="flex items-center gap-4 sm:w-full sm:justify-between">
+                          <span className="text-sm font-bold">{money(line.price * line.quantity)}</span>
+                          <button type="button" onClick={() => removeItem(line.record.id)} className="text-sm font-medium text-[#777c83] underline decoration-[#c9c9c5] underline-offset-4 transition hover:text-[#a23b3b]" aria-label={`Remove ${line.record.title} from cart`}>Remove</button>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+              <Link href="/" className="inline-flex items-center gap-2 px-1 py-3 text-sm font-semibold text-[#4f8cff] hover:text-[#286be0]">
+                <span aria-hidden="true">＋</span> Keep shopping
+              </Link>
             </section>
 
-            <aside className="space-y-4 lg:sticky lg:top-6">
-              <Card className="rounded-3xl border border-[#eeece8] bg-white p-5 shadow-sm sm:p-6">
-                <h2 className="text-lg font-bold">How would you like it?</h2>
-                <p className="mt-1 text-xs leading-5 text-[#777b80]">Choose an available demo fulfillment option.</p>
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  {([
-                    ["delivery", "Delivery", "To your door"],
-                    ["pickup", "Pickup", "Collect in store"],
-                  ] as const).map(([value, label, detail]) => (
-                    <button key={value} type="button" onClick={() => setFulfillment(value)} aria-pressed={fulfillment === value} className={`rounded-2xl border p-3 text-left transition ${fulfillment === value ? "border-[#4f8cff] bg-[#f0f6ff] ring-1 ring-[#4f8cff]" : "border-[#e9e7e3] bg-white hover:border-[#b8cffa]"}`}>
-                      <span className="flex items-center justify-between text-sm font-bold">{label}<span className={`flex h-4 w-4 items-center justify-center rounded-full border ${fulfillment === value ? "border-[#4f8cff] bg-[#4f8cff] text-[10px] text-white" : "border-[#c9c7c2]"}`}>{fulfillment === value ? "✓" : ""}</span></span>
-                      <span className="mt-1 block text-[11px] text-[#777b80]">{detail}</span>
-                    </button>
-                  ))}
+            <aside className="lg:sticky lg:top-6">
+              <Card className="rounded-2xl border border-[#ebe8e2] bg-white p-5 sm:p-6">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#777c83]">Order summary</p>
+                <div className="mt-5 space-y-3 border-b border-[#eeece8] pb-5 text-sm">
+                  <div className="flex justify-between gap-4"><span className="text-[#656a71]">Items ({itemCount})</span><span className="font-semibold">{money(subtotal)}</span></div>
+                  <div className="flex justify-between gap-4"><span className="text-[#656a71]">Delivery &amp; fees</span><span className="text-[#858990]">Calculated at checkout</span></div>
+                  <div className="flex justify-between gap-4"><span className="text-[#656a71]">Estimated tax</span><span className="text-[#858990]">Calculated at checkout</span></div>
                 </div>
-                <div className="mt-6 border-t border-[#f0efed] pt-5">
-                  <h3 className="mb-4 text-sm font-bold">Cost breakdown <span className="font-normal text-[#85888c]">· demo</span></h3>
-                  <dl className="space-y-3 text-sm">
-                    <div className="flex justify-between gap-3"><dt className="text-[#6f7378]">Items subtotal</dt><dd className="font-medium">{money(subtotal)}</dd></div>
-                    <div className="flex justify-between gap-3"><dt className="text-[#6f7378]">{fulfillment === "delivery" ? "Delivery fee" : "Pickup fee"}</dt><dd className="font-medium">{deliveryFee ? money(deliveryFee) : "Free"}</dd></div>
-                    <div className="flex justify-between gap-3"><dt className="text-[#6f7378]">Service fee</dt><dd className="font-medium">{money(serviceFee)}</dd></div>
-                    <div className="flex justify-between gap-3"><dt className="text-[#6f7378]">Estimated tax</dt><dd className="font-medium">{money(tax)}</dd></div>
-                  </dl>
-                  <div className="mt-5 flex items-baseline justify-between border-t border-[#f0efed] pt-4">
-                    <span className="font-bold">Order total</span><span className="text-2xl font-bold tracking-tight">{money(total)}</span>
-                  </div>
-                  <Button variant="primary" size="lg" onClick={placeOrder} disabled={placing} className="mt-5 w-full">
-                    {placing ? "Placing demo order…" : "Place demo order"}
-                  </Button>
-                  <p className="mt-3 text-center text-[11px] leading-4 text-[#85888c]">Simulated order · no payment will be taken</p>
-                </div>
+                <div className="flex justify-between gap-4 py-5 text-base font-bold"><span>Subtotal</span><span>{money(subtotal)}</span></div>
+                <p className="mb-5 text-xs leading-5 text-[#777c83]">Taxes and any sample fulfillment fees are shown for review at checkout. No payment is collected in this demo.</p>
+                <Link href="/checkout" className="block">
+                  <Button variant="primary" size="lg" className="w-full justify-center">Continue to checkout <span aria-hidden="true">→</span></Button>
+                </Link>
+                <div className="mt-4 flex items-center justify-center gap-2 text-xs text-[#777c83]"><span aria-hidden="true" className="text-[#4f8cff]">✦</span> A little goodness, gathered locally</div>
               </Card>
-              <p className="px-2 text-[11px] leading-5 text-[#85888c]">Basket state is saved in this browser only. Clearing browser data removes it, and it won’t sync to other devices.</p>
+              <p className="mt-4 break-words px-2 text-center text-xs leading-5 text-[#858990]">Cart data is saved on this device when browser storage is available. It may not carry across browsers or devices.</p>
             </aside>
           </div>
         )}
