@@ -7,7 +7,8 @@ export default async function OrderPage({
 
   return (
     <main>
-      <h1>Order {orderId}</h1>
+      <h1>Order details</h1>
+      <p>Order ID: {orderId}</p>
     </main>
   );
 }

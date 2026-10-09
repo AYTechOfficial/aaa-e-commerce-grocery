@@ -24,6 +24,9 @@ export type DemoOrder = {
   placedAt: string;
 };
 
+export const CART_STORAGE_KEY = "aaa-grocery-cart";
+export const ORDERS_STORAGE_KEY = "aaa-grocery-orders";
+
 const photos: Record<GroceryCategory, string> = {
   Produce: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=900&q=85",
   "Meat & Seafood": "https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?auto=format&fit=crop&w=900&q=85",
@@ -48,39 +51,21 @@ const productGroups: { category: GroceryCategory; names: string[]; prices: numbe
 
 export const categories: GroceryCategory[] = productGroups.map((group) => group.category);
 
-const descriptions: Record<GroceryCategory, string> = {
-  Produce: "Fresh-picked flavor from trusted growers. Carefully selected for your everyday table.",
-  "Meat & Seafood": "Thoughtfully sourced and prepared with care. Keep refrigerated and cook thoroughly.",
-  Dairy: "A delicious everyday staple, selected for quality and freshness.",
-  Bakery: "Made for sharing, with comforting flavor and a fresh-from-the-oven feel.",
-  Pantry: "A dependable kitchen staple for easy meals and well-stocked shelves.",
-  Frozen: "Conveniently frozen to help lock in flavor. Ready whenever you are.",
-  Beverages: "A refreshing pick for the fridge, pantry, or your next gathering.",
-  "Household Essentials": "Practical home essentials for a cleaner, more comfortable everyday routine.",
-};
-
 export const products: Product[] = productGroups.flatMap((group) =>
   group.names.map((name, index) => ({
-    slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+    slug: name.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""),
     name,
     category: group.category,
     price: group.prices[index],
     unit: group.unit,
     image: photos[group.category],
-    description: descriptions[group.category],
-    tags: group.category === "Produce" ? ["Fresh", "Seasonal"] : group.category === "Meat & Seafood" ? ["Responsibly sourced"] : [],
+    description: `${name}, selected for everyday freshness and quality. A thoughtfully sourced sample from our neighborhood grocery collection.`,
+    tags: group.category === "Produce" ? ["Fresh", "Seasonal"] : group.category === "Meat & Seafood" ? ["Fresh", "Quality sourced"] : [],
   })),
 );
 
-export const CART_STORAGE_KEY = "aaa-grocery-cart";
-export const ORDERS_STORAGE_KEY = "aaa-grocery-orders";
-
-export function getProductBySlug(slug: string): Product | undefined {
+export function getProduct(slug: string): Product | undefined {
   return products.find((product) => product.slug === slug);
-}
-
-export function getProductById(productId: string): Product | undefined {
-  return products.find((product) => product.slug === productId);
 }
 
 export function getCart(): CartLine[] {
@@ -89,26 +74,31 @@ export function getCart(): CartLine[] {
 
 export function saveCart(cart: CartLine[]): void {
   writeLocal(CART_STORAGE_KEY, cart);
-  if (typeof window !== "undefined") window.dispatchEvent(new Event("aaa-cart-updated"));
 }
 
 export function getCartCount(cart: CartLine[] = getCart()): number {
-  return cart.reduce((total, line) => total + line.quantity, 0);
+  return cart.reduce((total, line) => total + Math.max(0, line.quantity), 0);
 }
 
-export function getOrders(): DemoOrder[] {
+export function addToCart(productId: string): CartLine[] {
+  const cart = getCart();
+  const existing = cart.find((line) => line.productId === productId);
+  const updated = existing
+    ? cart.map((line) => line.productId === productId ? { ...line, quantity: line.quantity + 1 } : line)
+    : [...cart, { productId, quantity: 1 }];
+  saveCart(updated);
+  return updated;
+}
+
+export function getSavedOrders(): DemoOrder[] {
   return readLocal<DemoOrder[]>(ORDERS_STORAGE_KEY, []);
 }
 
-export function getOrderById(id: string): DemoOrder | undefined {
-  return getOrders().find((order) => order.id === id);
-}
-
 export function saveOrder(order: DemoOrder): void {
-  const orders = getOrders();
-  writeLocal(ORDERS_STORAGE_KEY, [order, ...orders.filter((saved) => saved.id !== order.id)]);
+  const orders = getSavedOrders().filter((saved) => saved.id !== order.id);
+  writeLocal(ORDERS_STORAGE_KEY, [order, ...orders]);
 }
 
-export function formatPrice(price: number): string {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(price);
+export function getSavedOrder(id: string): DemoOrder | undefined {
+  return getSavedOrders().find((order) => order.id === id);
 }
