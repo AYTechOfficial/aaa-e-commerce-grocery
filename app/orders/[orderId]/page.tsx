@@ -1,138 +1,130 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Badge, Button, Card, EmptyState } from "@/components/ui";
+import { useParams } from "next/navigation";
+import { Badge, Button, Card } from "@/components/ui";
 import { readLocal, writeLocal } from "@/lib/persist";
 
+const ORDERS_KEY = "local-grocery-orders";
+
 type OrderItem = {
-  id?: string;
-  name?: string;
-  quantity?: number;
-  price?: number;
-  substitution?: "approve" | "contact" | "no-substitution";
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
 };
 
-type OrderRecord = {
-  id?: string;
-  orderId?: string;
-  storeName?: string;
-  status?: string;
-  fulfillment?: string;
-  placedAt?: string;
-  items?: OrderItem[];
-  total?: number;
-  substitutionPreference?: string;
+type Order = {
+  id: string;
+  storeName: string;
+  items: OrderItem[];
+  fulfillment: string;
+  status: string;
+  placedAt: string;
+  subtotal: number;
+  deliveryFee: number;
+  serviceFee: number;
+  tax: number;
+  total: number;
+  substitutions: Record<string, string>;
 };
 
-const ordersKey = "local-grocery-orders";
+const money = (amount: number) => `$${amount.toFixed(2)}`;
 
-function readOrders(): OrderRecord[] {
-  const stored = readLocal<OrderRecord[]>(ordersKey, []);
-  return Array.isArray(stored) ? stored : [];
-}
-
-function currency(value: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
-}
-
-export default function OrderDetailPage() {
+export default function OrderDetailsPage() {
   const params = useParams<{ orderId: string }>();
   const orderId = Array.isArray(params.orderId) ? params.orderId[0] : params.orderId;
-  const [orders, setOrders] = useState<OrderRecord[]>([]);
-  const [order, setOrder] = useState<OrderRecord | undefined>();
-  const [notice, setNotice] = useState("");
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const order = orders.find((item) => item.id === orderId);
 
   useEffect(() => {
-    const saved = readOrders();
-    setOrders(saved);
-    setOrder(saved.find((item) => item.id === orderId || item.orderId === orderId));
-  }, [orderId]);
+    setOrders(readLocal<Order[]>(ORDERS_KEY, []));
+    setLoaded(true);
+  }, []);
 
-  function savePreference(preference: "approve" | "contact" | "no-substitution") {
-    if (!order) return;
-    const nextOrder: OrderRecord = {
-      ...order,
-      items: (order.items ?? []).map((item) => ({ ...item, substitution: preference })),
-      substitutionPreference: preference,
-    };
-    const nextOrders = orders.map((item) => item.id === orderId || item.orderId === orderId ? nextOrder : item);
-    setOrders(nextOrders);
-    setOrder(nextOrder);
-    writeLocal(ordersKey, nextOrders);
-    setNotice("Your substitution preference was saved for this simulated order.");
+  function updateSubstitution(itemId: string, decision: string) {
+    const next = orders.map((item) => item.id === orderId
+      ? { ...item, substitutions: { ...item.substitutions, [itemId]: decision } }
+      : item);
+    setOrders(next);
+    writeLocal(ORDERS_KEY, next);
   }
-
-  if (!order) {
-    return (
-      <main className="min-h-screen bg-[#F7F5EF] px-5 py-8 text-[#20352B]">
-        <header className="mx-auto flex max-w-5xl items-center justify-between rounded-2xl bg-white px-5 py-4 shadow-sm">
-          <Link href="/" className="text-xl font-bold">🌿 Local Grocery</Link>
-          <nav className="flex gap-5 text-sm font-semibold"><Link href="/" className="hover:text-[#2F7657]">Stores</Link><Link href="/cart" className="hover:text-[#2F7657]">Cart</Link><Link href="/orders" className="hover:text-[#2F7657]">Orders</Link></nav>
-        </header>
-        <div className="mx-auto mt-12 max-w-2xl">
-          <EmptyState title="Order not found" message="We couldn’t find this order in the demo on this device." description="Orders are simulated and saved only in this browser. Visit order history or place a demo order to see its details." action={<Link href="/orders" className="inline-flex rounded-full bg-[#2F7657] px-5 py-3 font-semibold text-white hover:bg-[#255f46]">View order history</Link>} />
-        </div>
-      </main>
-    );
-  }
-
-  const displayId = order.id || order.orderId || orderId;
-  const status = order.status || "Order received";
-  const statusTone = status.toLowerCase().includes("deliver") || status.toLowerCase().includes("complete") ? "pass" : "brand";
-  const items = order.items ?? [];
-  const preference = order.substitutionPreference || items.find((item) => item.substitution)?.substitution || "contact";
 
   return (
     <main className="min-h-screen bg-[#F7F5EF] text-[#20352B]">
-      <header className="border-b border-[#E5E8DF] bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-5 py-4">
-          <Link href="/" className="text-xl font-bold">🌿 Local Grocery</Link>
-          <nav className="flex gap-5 text-sm font-semibold"><Link href="/" className="hover:text-[#2F7657]">Stores</Link><Link href="/cart" className="hover:text-[#2F7657]">Cart</Link><Link href="/orders" className="hover:text-[#2F7657]">Orders</Link></nav>
-        </div>
+      <header className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-5 py-5 sm:px-8">
+        <Link href="/" className="flex items-center gap-2 text-xl font-bold"><span className="text-2xl text-[#2F7657]">❧</span>Local Grocery</Link>
+        <nav className="flex items-center gap-4 text-sm font-semibold"><Link className="hover:text-[#2F7657]" href="/">Stores</Link><Link className="hover:text-[#2F7657]" href="/cart">Cart</Link><Link className="text-[#2F7657]" href="/orders">Orders</Link></nav>
       </header>
-      <div className="mx-auto max-w-5xl px-5 py-8 md:py-12">
-        <Link href="/orders" className="text-sm font-semibold text-[#2F7657] hover:underline">← Order history</Link>
-        <div className="mt-5 flex flex-col justify-between gap-5 rounded-3xl border border-[#E5E8DF] bg-[radial-gradient(ellipse_at_top_right,_#E6F1E7,_#FFFFFF_68%)] p-7 md:flex-row md:items-center md:p-9">
-          <div>
-            <p className="text-sm font-bold uppercase tracking-[0.15em] text-[#2F7657]">Simulated order</p>
-            <h1 className="mt-2 font-serif text-4xl">Order details</h1>
-            <p className="mt-2 text-[#6B756E]">{order.storeName || "Local store"} · Order {displayId}</p>
-          </div>
-          <div className="flex flex-col items-start gap-2 md:items-end"><Badge tone={statusTone}>{status}</Badge><span className="text-sm text-[#6B756E]">{order.fulfillment || "Fulfillment details saved at checkout"}</span></div>
-        </div>
-
-        <div className="mt-7 grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
-          <Card className="rounded-2xl border border-[#E5E8DF] bg-white p-6 shadow-sm">
-            <h2 className="font-serif text-2xl">Your items</h2>
-            <div className="mt-4 divide-y divide-[#E5E8DF]">
-              {items.length ? items.map((item, index) => (
-                <div key={item.id || `${item.name || "item"}-${index}`} className="flex items-center justify-between gap-4 py-4">
-                  <div><p className="font-semibold">{item.name || "Grocery item"}</p><p className="mt-1 text-sm text-[#6B756E]">Quantity {item.quantity || 1}</p></div>
-                  <span className="font-semibold">{typeof item.price === "number" ? currency(item.price * (item.quantity || 1)) : "—"}</span>
+      <div className="mx-auto max-w-5xl px-5 pb-16 sm:px-8">
+        <Link href="/orders" className="inline-flex py-5 text-sm font-semibold text-[#2F7657] hover:underline">← Order history</Link>
+        {!loaded ? null : !order ? (
+          <Card className="mx-auto max-w-xl p-8 text-center">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[radial-gradient(circle_at_35%_35%,#fff7dd,#dceedd_72%)] text-5xl text-[#2F7657]" aria-hidden="true">❧</div>
+            <h1 className="mt-5 text-3xl font-semibold" style={{ fontFamily: "Fraunces, Georgia, serif" }}>Order not found</h1>
+            <p className="mt-3 text-[#6B756E]">This order isn’t saved in this browser. Orders in Local Grocery are simulated and stored on this device.</p>
+            <Link href="/orders" className="mt-6 inline-flex"><Button>View order history</Button></Link>
+          </Card>
+        ) : (
+          <>
+            <section className="relative overflow-hidden rounded-[24px] bg-gradient-to-br from-[#E6F1E7] via-[#f7f5ef] to-[#e5eedc] p-7 sm:p-10">
+              <span className="pointer-events-none absolute -right-5 -top-12 text-[200px] leading-none text-[#2F7657]/10" aria-hidden="true">❧</span>
+              <div className="relative">
+                <Badge tone="pass">Simulated order</Badge>
+                <h1 className="mt-4 text-4xl font-semibold" style={{ fontFamily: "Fraunces, Georgia, serif" }}>Your order details</h1>
+                <p className="mt-2 text-[#6B756E]">Order {order.id} · {order.placedAt || "Placed recently"}</p>
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <span className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#2F7657]">{order.status || "Order received"}</span>
+                  <span className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#526157]">{order.fulfillment || "Delivery"}</span>
                 </div>
-              )) : <p className="py-5 text-sm text-[#6B756E]">Item details were not saved with this demo order.</p>}
+                <p className="mt-4 text-sm text-[#526157]">From <strong>{order.storeName || "Your local store"}</strong> · Northside demo area</p>
+              </div>
+            </section>
+            <div className="mt-7 grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+              <Card className="p-6 sm:p-7">
+                <h2 className="text-xl font-bold">Items in this order</h2>
+                <p className="mt-1 text-sm text-[#6B756E]">Substitutions are a simulation. You’re in control of each decision.</p>
+                <div className="mt-5 divide-y divide-[#E5E8DF]">
+                  {order.items.map((item) => {
+                    const decision = order.substitutions?.[item.id] || "pending";
+                    return <div key={item.id} className="py-4 first:pt-0 last:pb-0">
+                      <div className="flex items-center justify-between gap-4">
+                        <div><p className="font-semibold">{item.name}</p><p className="mt-1 text-sm text-[#6B756E]">Qty {item.quantity} · {money(item.price)} each</p></div>
+                        <p className="font-bold">{money(item.price * item.quantity)}</p>
+                      </div>
+                      <div className="mt-3 rounded-xl bg-[#F7F5EF] p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-semibold">Substitution preference</span><span className="text-xs font-semibold capitalize text-[#6B756E]">{decision === "approved" ? "Replacement approved" : decision === "declined" ? "No replacement" : "Awaiting your choice"}</span></div>
+                        <div className="mt-3 flex gap-2">
+                          <Button size="sm" variant={decision === "approved" ? "primary" : "outline"} onClick={() => updateSubstitution(item.id, "approved")}>Approve replacement</Button>
+                          <Button size="sm" variant={decision === "declined" ? "secondary" : "outline"} onClick={() => updateSubstitution(item.id, "declined")}>No replacement</Button>
+                        </div>
+                      </div>
+                    </div>;
+                  })}
+                </div>
+              </Card>
+              <div className="space-y-6">
+                <Card className="p-6">
+                  <h2 className="text-xl font-bold">Order total</h2>
+                  <div className="mt-4 space-y-3 text-sm">
+                    <div className="flex justify-between"><span className="text-[#6B756E]">Items</span><span>{money(order.subtotal)}</span></div>
+                    <div className="flex justify-between"><span className="text-[#6B756E]">Delivery</span><span>{money(order.deliveryFee)}</span></div>
+                    <div className="flex justify-between"><span className="text-[#6B756E]">Service fee</span><span>{money(order.serviceFee)}</span></div>
+                    <div className="flex justify-between"><span className="text-[#6B756E]">Estimated tax</span><span>{money(order.tax)}</span></div>
+                    <div className="flex justify-between border-t border-[#E5E8DF] pt-3 text-base font-bold"><span>Total</span><span>{money(order.total)}</span></div>
+                  </div>
+                </Card>
+                <Card className="border-[#d7e6d6] bg-[#E6F1E7] p-6">
+                  <h2 className="text-lg font-bold">Need a hand?</h2>
+                  <p className="mt-2 text-sm leading-6 text-[#526157]">This is a simulated order, so no store or delivery team is connected. For demo help, contact <a className="font-semibold text-[#245a3e] underline" href="mailto:hello@localgrocery.demo">hello@localgrocery.demo</a>.</p>
+                </Card>
+                <Link href="/stores/northside-market" className="inline-flex"><Button variant="secondary">Browse stores</Button></Link>
+              </div>
             </div>
-            <div className="mt-4 flex justify-between border-t border-[#E5E8DF] pt-4 font-bold"><span>Order total</span><span>{typeof order.total === "number" ? currency(order.total) : "Shown at checkout"}</span></div>
-          </Card>
-
-          <Card className="rounded-2xl border border-[#E5E8DF] bg-white p-6 shadow-sm">
-            <h2 className="font-serif text-2xl">If an item is unavailable</h2>
-            <p className="mt-2 text-sm leading-6 text-[#6B756E]">Choose how this simulated order should handle a missing item. Your choice is saved on this device.</p>
-            <div className="mt-5 space-y-3">
-              <Button variant={preference === "approve" ? "primary" : "outline"} size="md" className="w-full" onClick={() => savePreference("approve")}>Choose a similar substitute</Button>
-              <Button variant={preference === "contact" ? "primary" : "outline"} size="md" className="w-full" onClick={() => savePreference("contact")}>Ask me before substituting</Button>
-              <Button variant={preference === "no-substitution" ? "primary" : "outline"} size="md" className="w-full" onClick={() => savePreference("no-substitution")}>Skip unavailable items</Button>
-            </div>
-            {notice && <p role="status" className="mt-4 rounded-xl bg-[#E6F1E7] p-3 text-sm font-semibold">{notice}</p>}
-            <div className="mt-6 border-t border-[#E5E8DF] pt-5">
-              <h3 className="font-bold">Demo support</h3>
-              <p className="mt-2 text-sm leading-6 text-[#6B756E]">Need help understanding this simulated order? Contact the demo team at <a className="font-semibold text-[#2F7657] underline" href="mailto:hello@localgrocery.demo">hello@localgrocery.demo</a>. No real order or delivery is created.</p>
-            </div>
-          </Card>
-        </div>
-        <p className="mt-6 text-center text-sm text-[#6B756E]">Status updates, inventory, and fulfillment are simulated for the Northside demo area.</p>
+          </>
+        )}
       </div>
     </main>
   );
