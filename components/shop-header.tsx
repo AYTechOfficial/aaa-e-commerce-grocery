@@ -1,43 +1,24 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import { readLocal } from "@/lib/persist";
-
-const CART_KEY = "aaa-grocery-cart";
-
-type CartEntry = { quantity?: number };
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { cartCount, readCart, type CartItem } from '@/lib/shop';
 
 export default function ShopHeader() {
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    const update = () => {
-      const cart = readLocal<CartEntry[]>(CART_KEY, []);
-      setCount(Array.isArray(cart) ? cart.reduce((total, item) => total + (Number(item.quantity) || 0), 0) : 0);
-    };
-    update();
-    window.addEventListener("cart-updated", update);
-    window.addEventListener("storage", update);
-    return () => {
-      window.removeEventListener("cart-updated", update);
-      window.removeEventListener("storage", update);
-    };
-  }, []);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  useEffect(() => setCart(readCart()), []);
 
   return (
     <>
-      <div style={{ background: "#183B2B", color: "white", padding: "9px 16px", textAlign: "center", fontSize: 12, letterSpacing: ".03em" }}>
-        A neighborhood grocery demo — catalog, prices, inventory, and fulfillment are simulated.
-      </div>
-      <header style={{ background: "#fff", borderBottom: "1px solid #e9e3d8" }}>
-        <nav style={{ maxWidth: 1180, margin: "0 auto", padding: "17px 22px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 18, flexWrap: "wrap" }}>
-          <Link href="/" style={{ color: "#183B2B", textDecoration: "none", fontFamily: "Georgia, serif", fontSize: 27, fontWeight: 700, letterSpacing: "-.04em" }}>AAA Grocery<span style={{ color: "#287A4B" }}>.</span></Link>
-          <div style={{ display: "flex", alignItems: "center", gap: 22, flexWrap: "wrap", fontSize: 14 }}>
-            <Link href="/#shop" style={{ color: "#183B2B", textDecoration: "none" }}>Shop</Link>
-            <Link href="/help" style={{ color: "#183B2B", textDecoration: "none" }}>Help</Link>
-            <Link href="/help#account" style={{ color: "#183B2B", textDecoration: "none" }}>Account</Link>
-            <Link href="/cart" aria-label={`Cart, ${count} items`} style={{ color: "#183B2B", textDecoration: "none", border: "1px solid #d8e5d9", background: "#f5faf5", borderRadius: 999, padding: "9px 15px", fontWeight: 700 }}>Basket ({count})</Link>
+      <div className="bg-[#183B2B] px-4 py-2 text-center text-xs font-medium tracking-wide text-white">A neighborhood grocery demo — prices, inventory, and fulfillment are simulated.</div>
+      <header className="border-b border-[#e9e3d8] bg-white">
+        <nav className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4" aria-label="Main navigation">
+          <Link href="/" className="font-serif text-2xl font-bold tracking-tight text-[#183B2B]">AAA <span className="text-[#287A4B]">Grocery</span></Link>
+          <div className="flex items-center gap-5 text-sm font-medium text-[#183B2B]">
+            <Link className="hidden hover:text-[#287A4B] sm:inline" href="/#shop">Shop</Link>
+            <Link className="hidden hover:text-[#287A4B] sm:inline" href="/help">Help</Link>
+            <Link className="hidden hover:text-[#287A4B] sm:inline" href="/account">Account</Link>
+            <Link href="/cart" className="rounded-full bg-[#E5F2E8] px-4 py-2 font-semibold transition hover:bg-[#d3e9d8]">Basket <span aria-label={`${cartCount(cart)} items`}>({cartCount(cart)})</span></Link>
           </div>
         </nav>
       </header>

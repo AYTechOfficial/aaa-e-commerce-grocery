@@ -1,135 +1,72 @@
-export type Product = {
+export type GroceryCategory = "Produce" | "Meat & Seafood" | "Dairy" | "Bakery" | "Pantry" | "Frozen" | "Beverages" | "Household Essentials";
+
+export type GroceryProduct = {
   slug: string;
   name: string;
+  category: GroceryCategory;
   price: number;
   unit: string;
-  category: string;
   description: string;
-  image: string;
   tags: string[];
+  image: string;
 };
 
-const photos = {
-  produce: "photo-1542838132-92c53300491e",
-  meat: "photo-1607623814075-e51df1bdc82f",
-  dairy: "photo-1628088062854-d1870b4553da",
-  bakery: "photo-1509440159596-0249088772ff",
-  pantry: "photo-1584473457409-ae5c91d7d1b3",
-  frozen: "photo-1570197788417-0e82375c9371",
-  beverages: "photo-1544145945-f90425340c7e",
-  household: "photo-1583947215259-38e31be8751f",
+const groups: { category: GroceryCategory; image: string; items: [string, string][] }[] = [
+  { category: "Produce", image: "photo-1542838132-92c53300491e", items: [["Organic Honeycrisp Apples", "1 lb"], ["Ripe Avocados", "each"], ["Baby Spinach", "5 oz"], ["Sweet Strawberries", "1 pint"], ["Rainbow Carrots", "1 bunch"], ["Roma Tomatoes", "1 lb"], ["English Cucumber", "each"], ["Lemons", "1 lb"]] },
+  { category: "Meat & Seafood", image: "photo-1607623814075-e51df1bdc82f", items: [["Chicken Breast", "1 lb"], ["Ground Beef", "1 lb"], ["Atlantic Salmon Fillet", "6 oz"], ["Pork Tenderloin", "1 lb"], ["Mild Italian Sausage", "1 lb"], ["Wild-Caught Shrimp", "12 oz"], ["Chicken Thighs", "1 lb"], ["Grass-Fed Steaks", "each"]] },
+  { category: "Dairy", image: "photo-1628088062854-d1870b4553da", items: [["Whole Milk", "half gallon"], ["Farmhouse Cheddar", "8 oz"], ["Greek Yogurt", "32 oz"], ["Salted Butter", "1 lb"], ["Free-Range Eggs", "dozen"], ["Oat Milk", "half gallon"], ["Shredded Mozzarella", "8 oz"], ["Cottage Cheese", "16 oz"]] },
+  { category: "Bakery", image: "photo-1509440159596-0249088772ff", items: [["Sourdough Boule", "each"], ["Butter Croissants", "4 pack"], ["Country White Bread", "loaf"], ["Blueberry Muffins", "4 pack"], ["Everything Bagels", "6 pack"], ["French Baguette", "each"], ["Chocolate Chip Cookies", "6 pack"], ["Whole Wheat Pita", "6 pack"]] },
+  { category: "Pantry", image: "photo-1606787366850-de6330128bfc", items: [["Extra Virgin Olive Oil", "16.9 oz"], ["Penne Pasta", "1 lb"], ["San Marzano Tomatoes", "28 oz"], ["Rolled Oats", "18 oz"], ["Creamy Peanut Butter", "16 oz"], ["Black Beans", "15 oz"], ["Basmati Rice", "2 lb"], ["Maple Syrup", "12 oz"]] },
+  { category: "Frozen", image: "photo- frozen", items: [["Sweet Peas", "12 oz"], ["Wild Blueberries", "12 oz"], ["Margherita Pizza", "each"], ["Vanilla Ice Cream", "pint"], ["Mixed Vegetables", "16 oz"], ["Chicken Pot Pie", "each"], ["Mango Chunks", "12 oz"], ["Waffle Fries", "20 oz"]] },
+  { category: "Beverages", image: "photo-1544145945-f90425340c7e", items: [["Sparkling Water", "8 pack"], ["Cold Brew Coffee", "32 oz"], ["Fresh Orange Juice", "half gallon"], ["Green Tea", "20 bags"], ["Ginger Lemon Kombucha", "bottle"], ["Apple Cider", "half gallon"], ["Coconut Water", "1 liter"], ["Ground Coffee", "12 oz"]] },
+  { category: "Household Essentials", image: "photo-1583947215259-38e31be8751f", items: [["Recycled Paper Towels", "2 rolls"], ["Dish Soap", "16 oz"], ["Laundry Detergent", "32 oz"], ["Compostable Trash Bags", "20 count"], ["All-Purpose Cleaner", "24 oz"], ["Soft Facial Tissues", "120 count"], ["Sponge Set", "3 pack"], ["Hand Soap", "12 oz"]] },
+];
+
+const imageIds: Record<GroceryCategory, string> = {
+  Produce: "photo-1542838132-92c53300491e",
+  "Meat & Seafood": "photo-1607623814075-e51df1bdc82f",
+  Dairy: "photo-1628088062854-d1870b4553da",
+  Bakery: "photo-1509440159596-0249088772ff",
+  Pantry: "photo-1606787366850-de6330128bfc",
+  Frozen: "photo- freezer",
+  Beverages: "photo-1544145945-f90425340c7e",
+  "Household Essentials": "photo-1583947215259-38e31be8751f",
 };
 
-const image = (id: string) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=900&q=85`;
-
-function makeProducts(category: string, imageId: string, rows: [string, string, number, string, string[]][]): Product[] {
-  return rows.map(([slug, name, price, unit, tags]) => ({
-    slug,
-    name,
-    price,
-    unit,
-    category,
-    tags,
-    image: image(imageId),
-    description: `${name}, selected as a fresh sample for your neighborhood grocery basket. Product details, availability, and pricing are simulated for this demo.`,
-  }));
+function photoUrl(category: GroceryCategory, index: number) {
+  const fallbacks: Record<GroceryCategory, string[]> = {
+    Produce: ["photo-1542838132-92c53300491e", "photo-1540420773420-3366772f4999", "photo-1566385101042-1a0aa0c1268c"],
+    "Meat & Seafood": ["photo-1607623814075-e51df1bdc82f", "photo-1604503468506-a8da13d82791", "photo-1519708227418-c8fd9a32b7a2"],
+    Dairy: ["photo-1628088062854-d1870b4553da", "photo-1550583724-b2692b85b150", "photo-1563636619-e9143da7973b"],
+    Bakery: ["photo-1509440159596-0249088772ff", "photo-1585478259715-876acc5be8eb", "photo-1608198093002-ad4e0054846d"],
+    Pantry: ["photo-1606787366850-de6330128bfc", "photo-1473093295043-cdd812d0e601", "photo-1515542622106-78bda8ba0e5b"],
+    Frozen: ["photo- frozen", "photo- frozen", "photo- frozen"],
+    Beverages: ["photo-1544145945-f90425340c7e", "photo-1513558161293-cdaf765edfd7", "photo-1517701604599-bb29b565090c"],
+    "Household Essentials": ["photo-1583947215259-38e31be8751f", "photo-1556228720-195a672e8a03", "photo-1585421514284-efb74c2b69ba"],
+  };
+  const id = fallbacks[category][index % fallbacks[category].length];
+  return `https://images.unsplash.com/${id}?auto=format&fit=crop&w=800&q=80`;
 }
 
-export const categories = [
-  "Produce",
-  "Meat & Seafood",
-  "Dairy",
-  "Bakery",
-  "Pantry",
-  "Frozen",
-  "Beverages",
-  "Household Essentials",
-];
+export const categories: GroceryCategory[] = groups.map((group) => group.category);
 
-export const products: Product[] = [
-  ...makeProducts("Produce", photos.produce, [
-    ["organic-bananas", "Organic Bananas", 1.29, "per lb", ["Organic", "Vegan"]],
-    ["honeycrisp-apples", "Honeycrisp Apples", 2.49, "per lb", ["Gluten-free", "Vegan"]],
-    ["avocados", "Ripe Hass Avocados", 1.50, "each", ["Vegan"]],
-    ["baby-spinach", "Baby Spinach", 3.49, "5 oz bag", ["Organic", "Vegan"]],
-    ["strawberries", "Fresh Strawberries", 4.99, "1 lb pack", ["Vegan"]],
-    ["blueberries", "Blueberries", 4.49, "6 oz pack", ["Vegan"]],
-    ["roma-tomatoes", "Roma Tomatoes", 1.99, "per lb", ["Vegan"]],
-    ["english-cucumber", "English Cucumber", 1.79, "each", ["Vegan"]],
-  ]),
-  ...makeProducts("Meat & Seafood", photos.meat, [
-    ["chicken-breast", "Boneless Chicken Breast", 8.99, "per lb", ["Gluten-free"]],
-    ["ground-turkey", "Lean Ground Turkey", 6.49, "16 oz pack", ["Gluten-free"]],
-    ["salmon-fillet", "Atlantic Salmon Fillet", 12.99, "per lb", ["Gluten-free"]],
-    ["ground-beef", "Ground Beef 90% Lean", 7.99, "per lb", ["Gluten-free"]],
-    ["pork-chops", "Center Cut Pork Chops", 6.99, "per lb", ["Gluten-free"]],
-    ["wild-shrimp", "Wild-Caught Shrimp", 10.99, "12 oz pack", ["Gluten-free"]],
-    ["italian-sausage", "Italian Chicken Sausage", 5.99, "12 oz pack", []],
-    ["cod-fillets", "Pacific Cod Fillets", 9.49, "per lb", ["Gluten-free"]],
-  ]),
-  ...makeProducts("Dairy", photos.dairy, [
-    ["whole-milk", "Whole Milk", 4.29, "half gallon", []],
-    ["oat-milk", "Unsweetened Oat Milk", 4.49, "half gallon", ["Vegan"]],
-    ["greek-yogurt", "Plain Greek Yogurt", 5.49, "32 oz tub", []],
-    ["salted-butter", "Creamy Salted Butter", 4.99, "16 oz", []],
-    ["sharp-cheddar", "Sharp Cheddar Cheese", 4.79, "8 oz block", []],
-    ["free-range-eggs", "Free-Range Large Eggs", 5.49, "dozen", []],
-    ["cottage-cheese", "Cottage Cheese", 3.99, "16 oz tub", []],
-    ["parmesan", "Shaved Parmesan", 5.99, "5 oz tub", []],
-  ]),
-  ...makeProducts("Bakery", photos.bakery, [
-    ["sourdough-loaf", "Country Sourdough Loaf", 6.49, "loaf", ["Vegan"]],
-    ["everything-bagels", "Everything Bagels", 4.99, "6 count", ["Vegan"]],
-    ["buttery-croissants", "Butter Croissants", 5.49, "4 count", []],
-    ["whole-wheat-bread", "Whole Wheat Sandwich Bread", 4.29, "loaf", ["Vegan"]],
-    ["blueberry-muffins", "Blueberry Muffins", 5.99, "4 count", []],
-    ["flour-tortillas", "Soft Flour Tortillas", 3.49, "10 count", ["Vegan"]],
-    ["dinner-rolls", "Soft Dinner Rolls", 3.99, "8 count", []],
-    ["cinnamon-raisin-bread", "Cinnamon Raisin Bread", 5.29, "loaf", ["Vegan"]],
-  ]),
-  ...makeProducts("Pantry", photos.pantry, [
-    ["rolled-oats", "Old-Fashioned Rolled Oats", 4.49, "18 oz", ["Vegan"]],
-    ["jasmine-rice", "Jasmine Rice", 6.99, "2 lb bag", ["Gluten-free", "Vegan"]],
-    ["penne-pasta", "Penne Rigate", 2.49, "16 oz", ["Vegan"]],
-    ["marinara-sauce", "Classic Marinara Sauce", 4.29, "24 oz jar", ["Vegan"]],
-    ["black-beans", "Black Beans", 1.49, "15 oz can", ["Vegan", "Gluten-free"]],
-    ["peanut-butter", "Creamy Peanut Butter", 4.99, "16 oz jar", ["Vegan"]],
-    ["extra-virgin-olive-oil", "Extra Virgin Olive Oil", 11.99, "16.9 oz bottle", ["Vegan"]],
-    ["maple-syrup", "Pure Maple Syrup", 8.49, "12 oz bottle", ["Vegan"]],
-  ]),
-  ...makeProducts("Frozen", photos.frozen, [
-    ["frozen-blueberries", "Frozen Wild Blueberries", 5.99, "12 oz bag", ["Vegan"]],
-    ["peas-carrots", "Peas & Carrots", 2.99, "12 oz bag", ["Vegan", "Gluten-free"]],
-    ["veggie-pizza", "Roasted Veggie Pizza", 8.99, "12 inch", ["Vegetarian"]],
-    ["vanilla-ice-cream", "Vanilla Bean Ice Cream", 6.49, "1 pint", []],
-    ["frozen-mango", "Frozen Mango Chunks", 4.99, "16 oz bag", ["Vegan"]],
-    ["chicken-dumplings", "Chicken Dumplings", 7.49, "16 oz bag", []],
-    ["frozen-broccoli", "Cut Broccoli Florets", 3.49, "12 oz bag", ["Vegan"]],
-    ["berry-sorbet", "Mixed Berry Sorbet", 5.99, "1 pint", ["Vegan"]],
-  ]),
-  ...makeProducts("Beverages", photos.beverages, [
-    ["sparkling-water", "Lime Sparkling Water", 5.99, "8 pack", ["Vegan"]],
-    ["cold-brew", "Smooth Cold Brew Coffee", 6.49, "32 oz bottle", ["Vegan"]],
-    ["orange-juice", "Fresh Orange Juice", 5.49, "half gallon", ["Vegan"]],
-    ["green-tea", "Jasmine Green Tea", 4.99, "20 tea bags", ["Vegan"]],
-    ["coconut-water", "Pure Coconut Water", 3.49, "1 liter", ["Vegan"]],
-    ["lemonade", "Homestyle Lemonade", 4.29, "half gallon", ["Vegan"]],
-    ["ground-coffee", "House Blend Coffee", 10.99, "12 oz bag", ["Vegan"]],
-    ["apple-juice", "Cloudy Apple Juice", 4.49, "32 oz bottle", ["Vegan"]],
-  ]),
-  ...makeProducts("Household Essentials", photos.household, [
-    ["paper-towels", "Recycled Paper Towels", 8.99, "6 rolls", ["Recycled"]],
-    ["dish-soap", "Plant-Based Dish Soap", 4.99, "16 oz bottle", ["Plant-based"]],
-    ["laundry-detergent", "Free & Clear Laundry Detergent", 12.99, "32 loads", ["Fragrance-free"]],
-    ["compost-bags", "Compostable Kitchen Bags", 7.49, "30 count", ["Compostable"]],
-    ["all-purpose-cleaner", "All-Purpose Cleaner", 5.49, "24 oz bottle", ["Plant-based"]],
-    ["bath-tissue", "Soft Bath Tissue", 9.99, "12 rolls", ["Recycled"]],
-    ["sponges", "Cellulose Kitchen Sponges", 3.99, "3 count", ["Plant-based"]],
-    ["hand-soap", "Gentle Hand Soap", 4.49, "12 oz bottle", ["Plant-based"]],
-  ]),
-];
+export const products: GroceryProduct[] = groups.flatMap((group, groupIndex) =>
+  group.items.map(([name, unit], index) => ({
+    slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+    name,
+    category: group.category,
+    price: Number((2.49 + ((groupIndex * 7 + index * 3) % 17) * 0.63).toFixed(2)),
+    unit,
+    description: `A thoughtfully selected ${name.toLowerCase()} from our neighborhood grocery collection. Product availability and pricing are simulated for this demo.`,
+    tags: index % 3 === 0 ? ["Popular", "Demo selection"] : ["Demo selection"],
+    image: photoUrl(group.category, index),
+  })),
+);
 
-export function findProduct(slug: string | string[] | undefined): Product | undefined {
-  const value = Array.isArray(slug) ? slug[0] : slug;
-  return products.find((product) => product.slug === value);
+export function findProduct(slug: string) {
+  return products.find((product) => product.slug === slug);
+}
+
+export function formatPrice(price: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(price);
 }

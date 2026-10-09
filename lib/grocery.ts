@@ -46,59 +46,55 @@ const productGroups: { category: GroceryCategory; names: string[]; prices: numbe
   { category: "Pantry", names: ["Extra Virgin Olive Oil", "Organic Rolled Oats", "San Marzano Tomatoes", "Creamy Almond Butter", "Jasmine Rice", "Red Lentils", "Organic Black Beans", "Sea Salt Crackers"], prices: [12.99, 5.49, 3.49, 8.99, 6.49, 4.29, 2.49, 4.49], unit: "per item" },
   { category: "Frozen", names: ["Wild Blueberries", "Sweet Peas", "Margherita Pizza", "Mango Chunks", "Vegetable Dumplings", "Vanilla Bean Ice Cream", "Riced Cauliflower", "Spinach & Feta Flatbread"], prices: [6.99, 2.99, 8.99, 5.99, 7.49, 6.49, 3.49, 7.99], unit: "per item" },
   { category: "Beverages", names: ["Sparkling Mineral Water", "Cold Brew Coffee", "Freshly Pressed Orange Juice", "Green Tea", "Ginger Lemon Kombucha", "Apple Cider", "Oat Barista Blend", "Classic Lemonade"], prices: [5.49, 5.99, 6.49, 4.99, 3.49, 5.49, 4.79, 3.99], unit: "per item" },
-  { category: "Household Essentials", names: ["Recycled Paper Towels", "Unscented Dish Soap", "Compostable Kitchen Bags", "All-Purpose Cleaner", "Laundry Detergent", "Bamboo Tissues", "Natural Sponges", "Hand Soap Refill"], prices: [8.99, 4.49, 7.99, 5.99, 12.99, 3.99, 4.99, 6.49], unit: "per item" },
+  { category: "Household Essentials", names: ["Recycled Paper Towels", "Unscented Dish Soap", "Compostable Kitchen Bags", "All-Purpose Cleaner", "Laundry Detergent", "Bamboo Tissues", "Natural Sponges", "Hand Soap Refill"], prices: [8.99, 4.49, 7.99, 5.99, 12.49, 3.99, 3.49, 5.49], unit: "per item" },
 ];
 
-export const categories: GroceryCategory[] = productGroups.map((group) => group.category);
+const descriptions: Record<GroceryCategory, string> = {
+  Produce: "Fresh-picked flavor for everyday meals, sourced with care and ready for your kitchen.",
+  "Meat & Seafood": "A thoughtfully selected favorite, packed fresh and ready to make a delicious meal.",
+  Dairy: "A fridge staple chosen for its comforting flavor and everyday quality.",
+  Bakery: "A neighborhood bakery favorite, made for sharing at the table.",
+  Pantry: "A dependable cupboard staple to keep your favorite recipes within reach.",
+  Frozen: "Conveniently frozen to make an easy, satisfying meal or snack whenever you need it.",
+  Beverages: "A refreshing everyday pick for your fridge, pantry, or next gathering.",
+  "Household Essentials": "A practical home essential to help keep your everyday routine running smoothly.",
+};
 
 export const products: Product[] = productGroups.flatMap((group) =>
   group.names.map((name, index) => ({
-    slug: name.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""),
+    slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
     name,
     category: group.category,
     price: group.prices[index],
     unit: group.unit,
     image: photos[group.category],
-    description: `${name}, selected for everyday freshness and quality. A thoughtfully sourced sample from our neighborhood grocery collection.`,
-    tags: group.category === "Produce" ? ["Fresh", "Seasonal"] : group.category === "Meat & Seafood" ? ["Fresh", "Quality sourced"] : [],
+    description: descriptions[group.category],
+    tags: name.toLowerCase().includes("organic") ? ["Organic"] : [],
   })),
 );
+
+export const categories: GroceryCategory[] = productGroups.map((group) => group.category);
 
 export function getProduct(slug: string): Product | undefined {
   return products.find((product) => product.slug === slug);
 }
 
-export function getCart(): CartLine[] {
-  return readLocal<CartLine[]>(CART_STORAGE_KEY, []);
+export function readCart(): CartLine[] {
+  const saved = readLocal<CartLine[]>(CART_STORAGE_KEY, []);
+  return Array.isArray(saved)
+    ? saved.filter((line) => typeof line.productId === "string" && Number.isFinite(line.quantity) && line.quantity > 0)
+    : [];
 }
 
 export function saveCart(cart: CartLine[]): void {
   writeLocal(CART_STORAGE_KEY, cart);
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("aaa-cart-update"));
 }
 
-export function getCartCount(cart: CartLine[] = getCart()): number {
-  return cart.reduce((total, line) => total + Math.max(0, line.quantity), 0);
+export function cartUnitCount(cart: CartLine[]): number {
+  return cart.reduce((total, line) => total + line.quantity, 0);
 }
 
-export function addToCart(productId: string): CartLine[] {
-  const cart = getCart();
-  const existing = cart.find((line) => line.productId === productId);
-  const updated = existing
-    ? cart.map((line) => line.productId === productId ? { ...line, quantity: line.quantity + 1 } : line)
-    : [...cart, { productId, quantity: 1 }];
-  saveCart(updated);
-  return updated;
-}
-
-export function getSavedOrders(): DemoOrder[] {
-  return readLocal<DemoOrder[]>(ORDERS_STORAGE_KEY, []);
-}
-
-export function saveOrder(order: DemoOrder): void {
-  const orders = getSavedOrders().filter((saved) => saved.id !== order.id);
-  writeLocal(ORDERS_STORAGE_KEY, [order, ...orders]);
-}
-
-export function getSavedOrder(id: string): DemoOrder | undefined {
-  return getSavedOrders().find((order) => order.id === id);
+export function money(amount: number): string {
+  return `$${amount.toFixed(2)}`;
 }
