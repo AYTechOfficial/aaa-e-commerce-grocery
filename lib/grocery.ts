@@ -48,44 +48,67 @@ const productGroups: { category: GroceryCategory; names: string[]; prices: numbe
 
 export const categories: GroceryCategory[] = productGroups.map((group) => group.category);
 
+const descriptions: Record<GroceryCategory, string> = {
+  Produce: "Fresh-picked flavor from trusted growers. Carefully selected for your everyday table.",
+  "Meat & Seafood": "Thoughtfully sourced and prepared with care. Keep refrigerated and cook thoroughly.",
+  Dairy: "A delicious everyday staple, selected for quality and freshness.",
+  Bakery: "Made for sharing, with comforting flavor and a fresh-from-the-oven feel.",
+  Pantry: "A dependable kitchen staple for easy meals and well-stocked shelves.",
+  Frozen: "Conveniently frozen to help lock in flavor. Ready whenever you are.",
+  Beverages: "A refreshing pick for the fridge, pantry, or your next gathering.",
+  "Household Essentials": "Practical home essentials for a cleaner, more comfortable everyday routine.",
+};
+
 export const products: Product[] = productGroups.flatMap((group) =>
   group.names.map((name, index) => ({
-    slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""),
+    slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
     name,
     category: group.category,
     price: group.prices[index],
     unit: group.unit,
     image: photos[group.category],
-    description: `${name}, thoughtfully selected for everyday meals and a well-stocked home. This sample listing is part of the AAA Grocery demo catalog; availability and pricing are simulated.`,
-    tags: group.category === "Produce" ? ["Fresh", "Seasonal selection"] : group.category === "Meat & Seafood" ? ["Chilled", "Responsibly selected"] : [],
+    description: descriptions[group.category],
+    tags: group.category === "Produce" ? ["Fresh", "Seasonal"] : group.category === "Meat & Seafood" ? ["Responsibly sourced"] : [],
   })),
 );
 
-export function findProduct(slug: string): Product | undefined {
+export const CART_STORAGE_KEY = "aaa-grocery-cart";
+export const ORDERS_STORAGE_KEY = "aaa-grocery-orders";
+
+export function getProductBySlug(slug: string): Product | undefined {
   return products.find((product) => product.slug === slug);
 }
 
+export function getProductById(productId: string): Product | undefined {
+  return products.find((product) => product.slug === productId);
+}
+
 export function getCart(): CartLine[] {
-  return readLocal<CartLine[]>("aaa-grocery-cart", []);
+  return readLocal<CartLine[]>(CART_STORAGE_KEY, []);
 }
 
 export function saveCart(cart: CartLine[]): void {
-  writeLocal("aaa-grocery-cart", cart.filter((line) => line.quantity > 0));
-  if (typeof window !== "undefined") window.dispatchEvent(new Event("cart-updated"));
+  writeLocal(CART_STORAGE_KEY, cart);
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("aaa-cart-updated"));
 }
 
-export function addToCart(productId: string): void {
-  const cart = getCart();
-  const existing = cart.find((line) => line.productId === productId);
-  if (existing) existing.quantity += 1;
-  else cart.push({ productId, quantity: 1 });
-  saveCart(cart);
+export function getCartCount(cart: CartLine[] = getCart()): number {
+  return cart.reduce((total, line) => total + line.quantity, 0);
 }
 
 export function getOrders(): DemoOrder[] {
-  return readLocal<DemoOrder[]>("aaa-grocery-orders", []);
+  return readLocal<DemoOrder[]>(ORDERS_STORAGE_KEY, []);
 }
 
-export function saveOrders(orders: DemoOrder[]): void {
-  writeLocal("aaa-grocery-orders", orders);
+export function getOrderById(id: string): DemoOrder | undefined {
+  return getOrders().find((order) => order.id === id);
+}
+
+export function saveOrder(order: DemoOrder): void {
+  const orders = getOrders();
+  writeLocal(ORDERS_STORAGE_KEY, [order, ...orders.filter((saved) => saved.id !== order.id)]);
+}
+
+export function formatPrice(price: number): string {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(price);
 }
