@@ -3,58 +3,32 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import StoreHeader from "@/components/store-header";
-import { getProduct, money, ORDERS_STORAGE_KEY, type DemoOrder } from "@/lib/grocery";
-import { readLocal } from "@/lib/persist";
+import { CART_STORAGE_KEY, formatPrice, getProductBySlug, readOrders, type DemoOrder } from "@/lib/grocery";
 
-export default function OrderPage() {
-  const params = useParams<{ id: string }>();
-  const [orders, setOrders] = useState<DemoOrder[]>([]);
+export default function OrderDetailsPage() {
+  const { id } = useParams<{ id: string }>();
+  const [order, setOrder] = useState<DemoOrder | undefined>();
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    const saved = readLocal<DemoOrder[]>(ORDERS_STORAGE_KEY, []);
-    setOrders(Array.isArray(saved) ? saved : []);
-  }, []);
-
-  const order = orders.find((savedOrder) => savedOrder.id === params.id);
+    setOrder(readOrders().find((savedOrder) => savedOrder.id === id));
+    setLoaded(true);
+  }, [id]);
 
   return (
-    <main style={{ background: "#FAF7F0", minHeight: "100vh", color: "#183B2B" }}>
-      <StoreHeader />
-      <section style={{ maxWidth: 760, margin: "0 auto", padding: "42px 24px 70px" }}>
-        {order ? (
-          <>
-            <div style={{ textAlign: "center", padding: "30px 16px" }}>
-              <div aria-hidden="true" style={{ display: "inline-flex", width: 54, height: 54, borderRadius: "50%", alignItems: "center", justifyContent: "center", background: "#E5F2E8", color: "#287A4B", fontSize: 28 }}>✓</div>
-              <h1 style={{ fontFamily: "Georgia, serif", fontSize: 40, margin: "14px 0 8px" }}>Demo order saved</h1>
-              <p style={{ color: "#62796a", lineHeight: 1.6 }}>Your order is saved locally for this demo. No payment or real fulfillment has been requested.</p>
-              <p style={{ fontSize: 13, color: "#718075" }}>Order reference <strong style={{ color: "#183B2B" }}>{order.id}</strong></p>
-            </div>
-            <div style={{ background: "#fff", border: "1px solid #e9e5db", borderRadius: 16, padding: 22 }}>
-              <h2 style={{ fontFamily: "Georgia, serif", fontSize: 25, marginTop: 0 }}>Order details</h2>
-              <p style={{ color: "#62796a" }}>Fulfillment: <strong style={{ color: "#183B2B", textTransform: "capitalize" }}>{order.fulfillment}</strong></p>
-              <p style={{ color: "#62796a" }}>Placed: {new Date(order.placedAt).toLocaleString()}</p>
-              <div style={{ borderTop: "1px solid #eee9df", marginTop: 18, paddingTop: 12 }}>
-                {order.items.map((line) => {
-                  const product = getProduct(line.productId);
-                  if (!product) return null;
-                  return <div key={line.productId} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "10px 0", borderBottom: "1px solid #f0ede6" }}><span>{line.quantity} × {product.name}<small style={{ display: "block", color: "#718075", marginTop: 3 }}>{money(product.price)} each</small></span><strong>{money(product.price * line.quantity)}</strong></div>;
-                })}
-              </div>
-              <div style={{ display: "grid", gap: 9, paddingTop: 16, color: "#62796a", fontSize: 14 }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}><span>Subtotal</span><span>{money(order.subtotal)}</span></div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}><span>Simulated {order.fulfillment} fee</span><span>{money(order.fee)}</span></div>
-                <div style={{ display: "flex", justifyContent: "space-between", color: "#183B2B", fontWeight: 700, fontSize: 18, borderTop: "1px solid #eee9df", paddingTop: 12 }}><span>Demo total</span><span>{money(order.total)}</span></div>
-              </div>
-            </div>
-          </>
-        ) : (
-          <div style={{ textAlign: "center", background: "#fff", border: "1px solid #e9e5db", borderRadius: 16, padding: "48px 24px" }}>
-            <h1 style={{ fontFamily: "Georgia, serif", fontSize: 34 }}>Order not found</h1>
-            <p style={{ color: "#62796a", lineHeight: 1.6 }}>This demo order isn’t saved in this browser. Locally saved orders are only available on the device where they were placed.</p>
-            <Link href="/" style={{ color: "#287A4B", fontWeight: 700 }}>Continue shopping</Link>
-          </div>
-        )}
+    <main style={{ minHeight: "100vh", background: "#FAF7F0", color: "#183B2B", padding: "28px 20px" }}>
+      <header style={{ maxWidth: 760, margin: "0 auto 32px", display: "flex", justifyContent: "space-between", alignItems: "center" }}><Link href="/" style={{ fontFamily: "Georgia,serif", fontWeight: 700, fontSize: 25, color: "#183B2B", textDecoration: "none" }}>AAA Grocery</Link><Link href="/orders" style={{ color: "#287A4B" }}>All demo orders</Link></header>
+      <section style={{ maxWidth: 760, margin: "auto", background: "white", border: "1px solid #e9e6de", borderRadius: 16, padding: "clamp(22px, 5vw, 42px)" }}>
+        {!loaded ? <p>Loading saved order…</p> : !order ? <><h1 style={{ fontFamily: "Georgia,serif", fontSize: 34 }}>Order not found</h1><p>This saved demo order could not be found in this browser.</p><Link href="/" style={{ color: "#287A4B", fontWeight: 700 }}>Continue shopping</Link></> : <>
+          <p style={{ color: "#287A4B", fontWeight: 700, letterSpacing: 1, fontSize: 12 }}>DEMO ORDER CONFIRMED</p>
+          <h1 style={{ fontFamily: "Georgia,serif", fontSize: 38, margin: "8px 0" }}>Thanks for your order.</h1>
+          <p style={{ color: "#526358", lineHeight: 1.6 }}>This confirmation is saved locally for this demo. No payment or real delivery or pickup request was made.</p>
+          <div style={{ background: "#E5F2E8", borderRadius: 12, padding: 16, margin: "22px 0" }}><strong>Order #{order.id}</strong><p style={{ margin: "8px 0 0" }}>{new Date(order.placedAt).toLocaleString()} · {order.fulfillment === "delivery" ? "Demo delivery" : "Demo pickup"}</p></div>
+          <h2 style={{ fontSize: 18, marginBottom: 12 }}>Order summary</h2>
+          <div style={{ display: "grid", gap: 12 }}>{order.items.map((line) => { const product = getProductBySlug(line.productId); return <div key={line.productId} style={{ display: "flex", justifyContent: "space-between", gap: 12, borderBottom: "1px solid #eee", paddingBottom: 10 }}><span>{product?.name ?? "Catalog item"} × {line.quantity}</span><strong>{formatPrice((product?.price ?? 0) * line.quantity)}</strong></div>; })}</div>
+          <div style={{ display: "grid", gap: 8, marginTop: 20 }}><div style={{ display: "flex", justifyContent: "space-between" }}><span>Subtotal</span><span>{formatPrice(order.subtotal)}</span></div><div style={{ display: "flex", justifyContent: "space-between" }}><span>Demo fulfillment fee</span><span>{formatPrice(order.fee)}</span></div><div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid #ddd", paddingTop: 12, fontSize: 18, fontWeight: 700 }}><span>Total</span><span>{formatPrice(order.total)}</span></div></div>
+          <Link href="/" style={{ display: "inline-block", marginTop: 26, background: "#287A4B", color: "white", borderRadius: 9, padding: "12px 18px", textDecoration: "none", fontWeight: 700 }}>Continue shopping</Link>
+        </>}
       </section>
     </main>
   );

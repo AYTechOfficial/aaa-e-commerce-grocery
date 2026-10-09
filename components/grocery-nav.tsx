@@ -2,34 +2,42 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { cartStorageKey, cartUpdatedEvent, type CartLine } from "@/lib/grocery-data";
 import { readLocal } from "@/lib/persist";
-import { CART_KEY, CartItem, cartCount } from "@/lib/grocery";
 
-export default function GroceryNav() {
+export function GroceryNav() {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
-    const refresh = () => setCount(cartCount(readLocal<CartItem[]>(CART_KEY, [])));
+    const refresh = () => {
+      const lines = readLocal<CartLine[]>(cartStorageKey, []);
+      setCount(lines.reduce((sum, line) => sum + Math.max(0, line.quantity), 0));
+    };
     refresh();
-    window.addEventListener("aaa-cart-change", refresh);
+    window.addEventListener(cartUpdatedEvent, refresh);
     window.addEventListener("storage", refresh);
     return () => {
-      window.removeEventListener("aaa-cart-change", refresh);
+      window.removeEventListener(cartUpdatedEvent, refresh);
       window.removeEventListener("storage", refresh);
     };
   }, []);
 
   return (
     <>
-      <div className="bg-[#183B2B] px-4 py-2 text-center text-xs font-medium tracking-wide text-white">A neighborhood grocery demo — products, prices, inventory, and fulfillment are simulated.</div>
-      <header className="border-b border-[#e8e1d4] bg-[#fffefa]">
+      <div className="bg-[#183B2B] px-4 py-2 text-center text-xs font-medium tracking-wide text-white">
+        Sample catalog, prices, inventory, and fulfillment are simulated for this demo.
+      </div>
+      <header className="border-b border-[#e9e3d7] bg-[#fffefa]">
         <nav className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4" aria-label="Main navigation">
-          <Link href="/" className="font-serif text-2xl font-bold tracking-tight text-[#183B2B]">AAA <span className="text-[#287A4B]">Grocery</span></Link>
-          <div className="flex items-center gap-4 text-sm font-semibold text-[#183B2B]">
-            <Link className="hidden transition hover:text-[#287A4B] sm:inline" href="/#shop">Shop</Link>
-            <Link className="hidden transition hover:text-[#287A4B] sm:inline" href="/">Help</Link>
-            <Link className="hidden transition hover:text-[#287A4B] sm:inline" href="/">Account</Link>
-            <Link href="/cart" className="rounded-full bg-[#E5F2E8] px-4 py-2 transition hover:bg-[#d2e8d7]">Basket <span className="ml-1 inline-flex min-w-6 justify-center rounded-full bg-white px-1.5 py-0.5 text-xs">{count}</span></Link>
+          <Link href="/" className="font-serif text-2xl font-bold tracking-tight text-[#183B2B]">AAA Grocery<span className="text-[#287A4B]">.</span></Link>
+          <div className="flex items-center gap-4 text-sm font-medium text-[#345441]">
+            <Link href="/#catalog" className="hidden transition hover:text-[#287A4B] sm:inline">Shop</Link>
+            <Link href="/orders" className="hidden transition hover:text-[#287A4B] sm:inline">Orders</Link>
+            <Link href="/" className="hidden transition hover:text-[#287A4B] md:inline">Help</Link>
+            <Link href="/" className="hidden transition hover:text-[#287A4B] md:inline">Account</Link>
+            <Link href="/cart" className="rounded-full bg-[#E5F2E8] px-4 py-2 font-semibold text-[#183B2B] transition hover:bg-[#d6eadb]" aria-label={`Cart, ${count} items`}>
+              Basket <span className="ml-1 inline-flex min-w-6 justify-center rounded-full bg-[#287A4B] px-1.5 py-0.5 text-xs text-white">{count}</span>
+            </Link>
           </div>
         </nav>
       </header>
